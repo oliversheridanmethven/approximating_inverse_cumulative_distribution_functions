@@ -2,39 +2,120 @@
 \usepackage{lipsum}
 \usepackage{todonotes}
 \usepackage{lineno}
+\usepackage{subfigure}
+%\usepackage{natbib}
+
+\citestyle{acmnumeric}
 \title{Approximating inverse cumulative distribution functions to produce approximate random variables}
 \author{Mike Giles}
 \email{mike.giles@maths.ox.ac.uk}
 \author{Oliver Sheridan-Methven}
-\email{oliver.sheridan-methven@maths.ox.ac.uk}
+\email{oliver.sheridan-methven@hotmail.co.uk}
 \affiliation{%
 \institution{Mathematical Institute, Oxford University}
 \city{Oxford}
 \country{UK}}
-\keywords{approximations, random variables, inverse cumulative distribution functions, the Gaussian distribution, the non-central $ \chi^2 $-distribution, Monte Carlo, the Euler-Maruyama scheme,  and high performance computing.}
+\keywords{approximations, random variables, inverse cumulative distribution functions, the Gaussian distribution, the non-central $ \chi^2 $ distribution, multilevel Monte Carlo, the Euler-Maruyama scheme,  and high performance computing.}
 \usepackage{blindtext}
 \begin{document}
 \linenumbers
 \begin{abstract}
-\lipsum[1]
+For random variables produced through the inverse transform method, approximate random variables are introduced, which are produced by approximations to a distribution's inverse cumulative distribution function. These approximations are designed to to be computationally inexpensive, and much cheaper than exact library functions, and thus highly suitable for use in Monte Carlo simulations. Two approximations are presented for the Gaussian distribution: a piecewise constant on equally spaced intervals, and a piecewise linear approximation using geometrically decaying interval dense at the distributions tails. The convergence of the approximation is demonstrated, and the computational savings are demonstrated for Python and C implementations. Implementations tailor Intel and Arm hardware are inspected, alongside hardware agnostic implementations. The savings are incorporated into a multilevel Monte Carlo framework with the Euler-Maruyama scheme to exploit the computation savings without losing accuracy. These ideas are empirically extended to the Milstein scheme, and the Cox-Ingersoll-Ross process' non-central $ \chi^2 $ distribution. 
 \end{abstract}
 \maketitle
 
+\clearpage
 \todo[inline=true, caption={General contents}]{
 \centerline{\underline{\textbf{The general structure}}}
+\begin{enumerate}
+\item Introduction
+\begin{enumerate}
+\item Introduction to exact random variables
+\item Introduction to some of the typical approximations used to make random variables more computationally accessible. (moment matching by Muller, and then Rademacher variables and the weak EM scheme.)
+\item Introduction to multilevel Monte Carlo and the use of cheap random variables. (Cite other work by me and Mike).
+\item Mention the partner repo which will contain all the code and has all this bundled into small demos. 
+\item Contributions of this work. 
+\end{enumerate}
+\item Approximate random variables
 \begin{enumerate}
 \item Approximate the inverse CDF
 \item The Gaussian distribution.
 \item Piecewise constant approximation
-\item Piecewise linear (polynomial?) approximation
-\item Dyadic intervals
-\item Computational results
-\item Extensions to the non-central $ \chi^2 $ scheme. 
+\item Piecewise linear (polynomial?) approximation with dyadic intervals.
+\item The RMSE of the approximations. 
+\end{enumerate}
+\item Implementation results
+\begin{enumerate}
+\item Times in Python
+\item Times in C. 
+\end{enumerate}
+\item Multilevel Monte Carlo
+\begin{enumerate}
+\item Introduction to Multilevel Monte Carlo and expected savings. 
+\item Cite our analysis results. 
+\item Variance reduction
+\item Demonstrative example with a ``target accuracy'' Vs computational time for a European call option for the original multilevel Monte Carlo, and then a second using our approximate random variables. (Geometric Brownian motion and simple call options.)
+\item Demonstrate similar results appear to hold for the Milstein scheme. 
+\end{enumerate}
+\item Extensions to  the non-central $ \chi^2 $ scheme. 
+\begin{enumerate}
+\item How to simulate. 
+\item Python times. 
+\item C times. 
+\item Price some example analytic and path dependent options and show the computational savings. 
+\end{enumerate}
+\item Conclusions. 
+\item Acknowledgements and funding. 
 \end{enumerate}
 }
-\section{Introduction}
-\lipsum[1]
 
-\blindmathpaper
+\clearpage
+\section{Introduction}
+
+There is a wide range of computational tasks which centre on using random numbers, including: encryption, animation rendering \citep{lee2017vectorized}, and financial simulations \citep{glasserman2013monte}, to name a few. A frequent bottleneck to these applications is the generation of random numbers, whether these are cryptographically secure random numbers for encryption, or random numbers from a specific statistical distribution such as in Monte Carlo simulations (including Markov chain Monte Carlo \citep{hoang2013complexity,scheichl2017quasi}).  While computers have many excellent and fast implementations of random number generators for the uniform distribution, sampling random variables from a generic distribution it is often computationally very expensive. For certain distributions there are some specific transformations, such as the Box-Muller scheme \citep{box1958note} for the Gaussian distribution. 
+
+In this work we consider random variables produced using the inverse transform method \citep{glasserman2013monte}. The inverse transform method enables sampling from any distribution, and thus is very widely applicable. Additionally, it is crucial for quasi-Monte Carlo simulations \citep{giles2009multilevel_qmc,lecuyer2016randomized}, where it is important that no samples are rejected and the low-discrepancy property of the random numbers is preserved \citep{tezuka1995uniform}, and and their use in financial simulations is significant \citep{joy1996quasi,xu2015high}. Furthermore, we will demonstrate how the inverse transform method is particularly well suited to analysis. Lastly, it naturally provides a coupling mechanism for multilevel Monte Carlo applications for a range of stochastic processes, statistical distributions, and numerical schemes. 
+
+Our analysis focuses on producing random variables from the Gaussian distribution (a.k.a.\ the Normal distribution), and the motivations for this are threefold. Firstly, the distribution is a good representative for several classes of continuous distributions, and due to the central limit theorem is often the limiting case of several distributions. Secondly, the distribution is analytically tractable, and we will find the analysis will often admit some exact results, and is otherwise often amenable to various approximations. Lastly, the distribution is ubiquitous in both academic analysis and scientific computation, with its position cemented within It\^{o} calculus and financial simulations. 
+
+For the inverse transform method to produce Gaussian random variables, this will require the Gaussian distribution's inverse cumulative distribution function $ \Phi^{-1} $. Constructing approximations to $ \Phi^{-1} $ which are accurate to machine precision has long been under the attention of the scientific community \citep{hastings1955approximations,evans1974algorithm70,beasley1985percentage,wichura1988algorithm,marsaglia1994rapid,giles2011approximating}, where the de facto routine implemented in most libraries is typically the method by \citet{wichura1988algorithm}. While several applications can require such accurate approximations, such as in evaluating $ p $-values in various statistical applications, for numerous others such accuracy is superfluous and unnecessarily costly, and is commonly the case in Monte Carlo simulations. 
+
+To alleviate the costly procedure of exactly sampling from the Gaussian distribution, the most prominent method of circumventing the expensive sampling random variables from the Gaussian is to substitute these with random variables with similar statistics. The bulk of such schemes are to follow a moment matching procedure. The most well known of these is to use Rademacher random variables, which takes values the $ \pm 1 $ with equal probability \citep[page~XXXII]{kloeden1999numerical} (giving rise to the weak Euler-Maruyama scheme), matching the zero mean property. Another is to sum twelve uniform random variables and subtract the mean \citep[page~500]{munk2011fixed}, which matches the mean and variance, and is still computationally cheap. The most recent work in this direction is by \citet{muller2015improving}, who produce either a three or four-point distribution, where the probability mass of the distribution is chosen so the resulting distribution's moments match the lowest few moments of the Gaussian distribution. 
+
+The direction which this work follows is closer aligned to the work by \citet{giles2019random_quadrature,giles2019random_multilevel}. Their analysis proposes a cost model for producing the individual random bits constituting a uniform random number. They truncate their uniforms to a fixed number of bits and then add a small offset before using the inverse transform method. A nett result from this is to produce a piecewise constant approximation to $ \Phi^{-1} $, where the intervals are all of equal width, and the piecewise constant values are the mid-point values of the respective intervals. 
+
+The work we present will directly look to substitute random variables produced from the inverse transform method using the inverse cumulative distribution function, with those produced using an approximation to the inverse cumulative distribution function. While this is primarily motivated by computational savings, we will find that our framework encompasses and recovers the distributions produced from the various moment matching schemes and the truncated bit schemes by \citet{giles2019random_quadrature,giles2019random_multilevel}. 
+
+Having a framework capable of producing such various distributions will have several benefits. The first is that by refining our approximation, we will be able to construct distributions resembling the exact distribution to an arbitrary fidelity. This allows for a trade-off between computational savings, and a lower degree of variance between the exact distribution and its approximation. This naturally will introduce two different tiers of simulations: those use a cheap but approximate distribution, and those using an expensive but exact distribution. This immediately facilitates the multilevel Monte Carlo setting by \citet{giles2008multilevel}. There is a natural trade-off between the fidelity and cost, and balancing these to obtain the minimal computational time is non-trivial. As an example, Rademacher random variables, while very cheap, are too crude to fully exploit the savings possible with multilevel Monte Carlo. However, the fidelity of our approximations can be adjusted to fully exploit the possible savings. 
+
+
+
+The second benefit of our approach is that while the approximations are  specified mathematically, their implementations are left unspecified. This flexibility facilitates constructing approximations which can be tailored to a specific hardware or architecture. We will present two approximations, whose implementations can gain computational speed by transitioning the work load from primarily using the floating-point processing units to instead exploiting the cache hierarchy. Further to this, our approximations are designed with vector hardware in mind. Our approximations are non-branching, and thus suitable for implementation using single-instruction multiple data (SIMD) instructions, including Arm's new scalable vector extension (SVE) instruction set. Furthermore, for hardware with very large vectors, such as the 512-bit wide vectors on Intel's AVX-512 and Fujitsu's Arm-based A64FX (such as those in the new Fugaku supercomputer), we demonstrate implementations which although they are not vector length agnostic, they are unrivalled in their computational performance on the latest hardwares. Previous work using low-precision bit-wise approximations targetted at field-programmable gate arrays has previously motivated the related works by \citet{brugger2014mixed} and \citet{omland2015exploiting}.
+
+In this work, we will primarily focus our attention on the analysis and implementation of two approximations: a piecewise constant approximation using equally sized intervals, and a piecewise linear approximation using geometrically decaying intervals. The former is an extension of the work by \citet[Theorem~1]{giles2019random_quadrature} to higher moments, while the latter is a novel analysis, capable of both the highest speeds and fidelities. Although we will demonstrate how these are incorporated into a multilevel Monte Carlo framework, the subsequent analysis is performed by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} and omitted from this work. We will however showcase the savings a practitioner adopting our framework can expect to achieve from even a minimal incorporation of our proposals. 
+
+Section~\ref{sec:approximate_random_variables} introduces and analyses our two approximations, providing bounds on the $ L^p $ error of the approximation. Section~\ref{sec:high_performance_impementations} then discusses the production of high performance implementations, the code for which is collected into a central repository and maintained by \citet{sheridan2020approximate_random,sheridan2020approximate_inverse}, and the code to reproduce these results is similarly collected together into a separate repository \citep{sheridan2020approximate_inverse}. Section~\ref{sec:multilevel_monte_carlo} introduces multilevel Monte Carlo as a natural setting for our approximations, and demonstrates the possible computational savings. Section~\ref{sec:parametrised_distributions} extends our approximations to the non-central $ \chi^2 $ distribution, representing a very expensive parametrised distribution which arises in simulations of the Cox-Ingersoll-Ross process. Lastly, section~\ref{sec:conclusions} presents the conclusions from this work. 
+
+\section{Approximate random variables}
+\label{sec:approximate_random_variables}
+
+\section{High performance implementations}
+\label{sec:high_performance_impementations}
+
+\section{Multilevel Monte Carlo}
+\label{sec:multilevel_monte_carlo}
+
+\section{Parametrised distributions}
+\label{sec:parametrised_distributions}
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+
+
+
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
 
 \end{document}
