@@ -1,13 +1,17 @@
-\documentclass[manuscript]{acmart}
-\usepackage{lipsum}
+\documentclass[manuscript,review]{acmart}
+\usepackage{mathtools} % remove this later. 
+\usepackage{bm}
 \usepackage{todonotes}
-\usepackage{lineno}
 \usepackage{subfigure}
-%\usepackage{natbib}
+\usepackage{physics}
+
+%\newcommand{\indicatorfn}{\vmathbb{1}}  % From the newtxmath package. 
+\DeclareMathOperator*{\argmin}{argmin}
 
 \citestyle{acmnumeric}
+
 \title{Approximating inverse cumulative distribution functions to produce approximate random variables}
-\author{Mike Giles}
+\author{Michael Giles}
 \email{mike.giles@maths.ox.ac.uk}
 \author{Oliver Sheridan-Methven}
 \email{oliver.sheridan-methven@hotmail.co.uk}
@@ -18,7 +22,6 @@
 \keywords{approximations, random variables, inverse cumulative distribution functions, the Gaussian distribution, the non-central $ \chi^2 $ distribution, multilevel Monte Carlo, the Euler-Maruyama scheme,  and high performance computing.}
 \usepackage{blindtext}
 \begin{document}
-\linenumbers
 \begin{abstract}
 For random variables produced through the inverse transform method, approximate random variables are introduced, which are produced by approximations to a distribution's inverse cumulative distribution function. These approximations are designed to to be computationally inexpensive, and much cheaper than exact library functions, and thus highly suitable for use in Monte Carlo simulations. Two approximations are presented for the Gaussian distribution: a piecewise constant on equally spaced intervals, and a piecewise linear approximation using geometrically decaying interval dense at the distributions tails. The convergence of the approximation is demonstrated, and the computational savings are demonstrated for Python and C implementations. Implementations tailor Intel and Arm hardware are inspected, alongside hardware agnostic implementations. The savings are incorporated into a multilevel Monte Carlo framework with the Euler-Maruyama scheme to exploit the computation savings without losing accuracy. These ideas are empirically extended to the Milstein scheme, and the Cox-Ingersoll-Ross process' non-central $ \chi^2 $ distribution. 
 \end{abstract}
@@ -71,6 +74,7 @@ For random variables produced through the inverse transform method, approximate 
 
 \clearpage
 \section{Introduction}
+\label{sec:introduction}
 
 There is a wide range of computational tasks which centre on using random numbers, including: encryption, animation rendering \citep{lee2017vectorized}, and financial simulations \citep{glasserman2013monte}, to name a few. A frequent bottleneck to these applications is the generation of random numbers, whether these are cryptographically secure random numbers for encryption, or random numbers from a specific statistical distribution such as in Monte Carlo simulations (including Markov chain Monte Carlo \citep{hoang2013complexity,scheichl2017quasi}).  While computers have many excellent and fast implementations of random number generators for the uniform distribution, sampling random variables from a generic distribution it is often computationally very expensive. For certain distributions there are some specific transformations, such as the Box-Muller scheme \citep{box1958note} for the Gaussian distribution. 
 
@@ -78,11 +82,11 @@ In this work we consider random variables produced using the inverse transform m
 
 Our analysis focuses on producing random variables from the Gaussian distribution (a.k.a.\ the Normal distribution), and the motivations for this are threefold. Firstly, the distribution is a good representative for several classes of continuous distributions, and due to the central limit theorem is often the limiting case of several distributions. Secondly, the distribution is analytically tractable, and we will find the analysis will often admit some exact results, and is otherwise often amenable to various approximations. Lastly, the distribution is ubiquitous in both academic analysis and scientific computation, with its position cemented within It\^{o} calculus and financial simulations. 
 
-For the inverse transform method to produce Gaussian random variables, this will require the Gaussian distribution's inverse cumulative distribution function $ \Phi^{-1} $. Constructing approximations to $ \Phi^{-1} $ which are accurate to machine precision has long been under the attention of the scientific community \citep{hastings1955approximations,evans1974algorithm70,beasley1985percentage,wichura1988algorithm,marsaglia1994rapid,giles2011approximating}, where the de facto routine implemented in most libraries is typically the method by \citet{wichura1988algorithm}. While several applications can require such accurate approximations, such as in evaluating $ p $-values in various statistical applications, for numerous others such accuracy is superfluous and unnecessarily costly, and is commonly the case in Monte Carlo simulations. 
+For the inverse transform method to produce Gaussian random variables, this will require the Gaussian distribution's inverse cumulative distribution function. Constructing approximations which are accurate to machine precision has long been under the attention of the scientific community \citep{hastings1955approximations,evans1974algorithm70,beasley1985percentage,wichura1988algorithm,marsaglia1994rapid,giles2011approximating}, where the de facto routine implemented in most libraries is typically the method by \citet{wichura1988algorithm}. While several applications can require such accurate approximations, such as in evaluating $ p $-values in various statistical applications, for numerous others such accuracy is superfluous and unnecessarily costly, and is commonly the case in Monte Carlo simulations. 
 
 To alleviate the costly procedure of exactly sampling from the Gaussian distribution, the most prominent method of circumventing the expensive sampling random variables from the Gaussian is to substitute these with random variables with similar statistics. The bulk of such schemes are to follow a moment matching procedure. The most well known of these is to use Rademacher random variables, which takes values the $ \pm 1 $ with equal probability \citep[page~XXXII]{kloeden1999numerical} (giving rise to the weak Euler-Maruyama scheme), matching the zero mean property. Another is to sum twelve uniform random variables and subtract the mean \citep[page~500]{munk2011fixed}, which matches the mean and variance, and is still computationally cheap. The most recent work in this direction is by \citet{muller2015improving}, who produce either a three or four-point distribution, where the probability mass of the distribution is chosen so the resulting distribution's moments match the lowest few moments of the Gaussian distribution. 
 
-The direction which this work follows is closer aligned to the work by \citet{giles2019random_quadrature,giles2019random_multilevel}. Their analysis proposes a cost model for producing the individual random bits constituting a uniform random number. They truncate their uniforms to a fixed number of bits and then add a small offset before using the inverse transform method. A nett result from this is to produce a piecewise constant approximation to $ \Phi^{-1} $, where the intervals are all of equal width, and the piecewise constant values are the mid-point values of the respective intervals. 
+The direction which this work follows is closer aligned to the work by \citet{giles2019random_quadrature,giles2019random_multilevel}. Their analysis proposes a cost model for producing the individual random bits constituting a uniform random number. They truncate their uniforms to a fixed number of bits and then add a small offset before using the inverse transform method. A nett result from this is to produce a piecewise constant approximation, where the intervals are all of equal width, and the piecewise constant values are the mid-point values of the respective intervals. 
 
 The work we present will directly look to substitute random variables produced from the inverse transform method using the inverse cumulative distribution function, with those produced using an approximation to the inverse cumulative distribution function. While this is primarily motivated by computational savings, we will find that our framework encompasses and recovers the distributions produced from the various moment matching schemes and the truncated bit schemes by \citet{giles2019random_quadrature,giles2019random_multilevel}. 
 
@@ -94,13 +98,328 @@ The second benefit of our approach is that while the approximations are  specifi
 
 In this work, we will primarily focus our attention on the analysis and implementation of two approximations: a piecewise constant approximation using equally sized intervals, and a piecewise linear approximation using geometrically decaying intervals. The former is an extension of the work by \citet[Theorem~1]{giles2019random_quadrature} to higher moments, while the latter is a novel analysis, capable of both the highest speeds and fidelities. Although we will demonstrate how these are incorporated into a multilevel Monte Carlo framework, the subsequent analysis is performed by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} and omitted from this work. We will however showcase the savings a practitioner adopting our framework can expect to achieve from even a minimal incorporation of our proposals. 
 
-Section~\ref{sec:approximate_random_variables} introduces and analyses our two approximations, providing bounds on the $ L^p $ error of the approximation. Section~\ref{sec:high_performance_impementations} then discusses the production of high performance implementations, the code for which is collected into a central repository and maintained by \citet{sheridan2020approximate_random,sheridan2020approximate_inverse}, and the code to reproduce these results is similarly collected together into a separate repository \citep{sheridan2020approximate_inverse}. Section~\ref{sec:multilevel_monte_carlo} introduces multilevel Monte Carlo as a natural setting for our approximations, and demonstrates the possible computational savings. Section~\ref{sec:parametrised_distributions} extends our approximations to the non-central $ \chi^2 $ distribution, representing a very expensive parametrised distribution which arises in simulations of the Cox-Ingersoll-Ross process. Lastly, section~\ref{sec:conclusions} presents the conclusions from this work. 
+Section~\ref{sec:approximate_gaussian_random_variables} introduces and analyses our two approximations, providing bounds on the error of the approximation. Section~\ref{sec:high_performance_impementations} then discusses the production of high performance implementations, the code for which is collected into a central repository and maintained by \citet{sheridan2020approximate_random,sheridan2020approximate_inverse}, and the code to reproduce these results is similarly collected together into a separate repository \citep{sheridan2020approximate_inverse}. Section~\ref{sec:multilevel_monte_carlo} introduces multilevel Monte Carlo as a natural setting for our approximations, and demonstrates the possible computational savings. Section~\ref{sec:parametrised_distributions} extends our approximations to the non-central $ \chi^2 $ distribution, representing a very expensive parametrised distribution which arises in simulations of the Cox-Ingersoll-Ross process. Lastly, section~\ref{sec:conclusions} presents the conclusions from this work. 
 
-\section{Approximate random variables}
-\label{sec:approximate_random_variables}
+\section{Approximate Gaussian random variables}
+\label{sec:approximate_gaussian_random_variables}
+
+We will be using the inverse transform method \citep[2.2.1]{glasserman2013monte} to produce random variable samples from a desired distribution. The key step to this method is evaluating a distribution's inverse cumulative distribution function (sometimes called the percentile or percent point function). From here on we will focus on sampling from the Gaussian distribution, whose inverse cumulative distribution function we denote by $ \Phi^{-1} \colon (0, 1) \to \mathbb{R} $ (some authors use $ N^{-1} $), and similarly whose cumulative distribution function and probability density function we denoted by $ \Phi $ and $ \phi $ respectively. 
+
+Our key proposal is to use the inverse transform method with an approximation to the inverse cumulative distribution function. As the resulting distribution will not exactly match the desired distribution, we call random variables produced in this way \emph{approximate random variables}, and those without the approximation as \emph{exact random variables} for added clarity. In general, we will denote exact Gaussian random variables with $ Z $ and approximate Gaussian random variables with $ \tilde{Z} $. The key motivation for introducing these approximate random variables is that they are computationally cheaper to generate than exact random variables. Consequently, our key motivating criteria in forming approximations will be having a simple mathematical construction, hoping that simplicity fosters fast implementations. As such there is a slight trade off between simplicity and fidelity, where we will primarily be targetting the former. 
+
+In this section, we present two approximation types: a piecewise constant, and a piecewise linear. For both of these we will produce bounds on the approximation's $ L^p $ error, focusing on their mathematical construction and analysis. Their implementation and use will be detailed more in sections~\ref{sec:high_performance_impementations} and \ref{sec:multilevel_monte_carlo}. The analysis of both of these will share and frequently use results concerning various moments of the Gaussian distribution and approximations for tail values, which we gather together in section~\ref{sec:approximating_tail_values_and_high_order_moments}. Subsequent to this, the piecewise constant and linear approximations are analysed in sections~\ref{sec:piecewise_constant_approximations_on_equal_intervals} and \ref{sec:piecewise_linear_approximations_on_geometric_intervals}.
+
+
+\subsection{Approximating tail values and high order moments}
+\label{sec:approximating_tail_values_and_high_order_moments}
+
+For the Gaussian distribution with probability density function $ \phi(z) \coloneqq \tfrac{1}{\sqrt{2\pi}} {\exp}(-\tfrac{1}{2}z^2) $, we will require approximations for tail values and their high order moments. These approximations will usually become more accurate for more extreme tail values, and so we use the notation by \citet{giles2019random_quadrature} that $ f(z) \approx g(z) $ to denote $ \lim_{z\to\infty} \tfrac{f(z)}{g(z)} = 1 $, and similarly $ f(z) \lessapprox g(z) $ to denote $ f(z) \leq g(z) $ and $ f(z) \approx g(z) $. Our key result will be lemmas~\ref{lemma:approximate_tail_values} and \ref{lemma:approximate_moments} which will bound the tail values and high order moments. Lemma~\ref{lemma:approximate_tail_values} is an extension on a similar result by \citet[Lemma~7]{giles2019random_quadrature}, extended to give enclosing bounds. Similarly lemma~\ref{lemma:approximate_moments} is partly an extension of another result by \citet[Lemma~9]{giles2019random_quadrature}, extended to arbitrarily high moments rather than just the second. As such, neither of these lemmas are particularly noteworthy in themselves and their proofs closely resemble those by \citet[Appendix~A]{giles2019random_quadrature}. Similarly our resulting error bounds for the piecewise constant approximation in section~\ref{sec:piecewise_constant_approximations_on_equal_intervals} will closely resemble a related result by \citet[Theorem~1]{giles2019random_quadrature}. However, our main result for the piecewise linear approximation in section~\ref{sec:piecewise_linear_approximations_on_geometric_intervals} will require these results, and thus we include them here primarily for completeness. 
+
+\begin{lemma}
+\label{lemma:approximate_tail_values}
+Defining $ z_q \coloneqq \Phi^{-1}(1 - 2^{-q})$, then for $ q \gg 1 $ we have the bounds $ 1 \lessapprox \tfrac{2^q\phi(z_q)}{z_q} \lessapprox (1 - z_q^{-2})^{-1}$  and $ \sqrt{q \log(4) - \log(q \pi \log(16))} \lessapprox z_q  \lessapprox \sqrt{q \log(4)}$.
+\end{lemma}
+
+\begin{proof}
+As $ 2^{-q} = 1 - \Phi(z_q) $, it remains to evaluate the integral $ 1 - \Phi(z_q) = \int_{z_q}^{\infty} \phi(s) \dd{s} $. Using $ \phi'(z) =  -z \phi(z) $ and integrating by parts gives $ \int_{z_q}^{\infty} \phi(s) \dd{s} = \eval*[\tfrac{-\phi(s)}{s}|_{z_q}^{\infty} - \int_{z_q}^{\infty} \tfrac{1}{s^2} \phi(s) \dd{s} $, and repeating this gives $ \int_{z_q}^{\infty} \phi(s) \dd{s}  = \phi(z_q)(\tfrac{1}{z_q} - \tfrac{1}{z_q^3} + \cdots) $. To first order we have $ 2^{-q} \lessapprox \tfrac{\phi(z_q)}{z_q} $ and to second order $ 2^{-q} \gtrapprox \phi(z_q)(\tfrac{1}{z_q} - \tfrac{1}{z_q^3}) $ which combine to give $ 1 \lessapprox \tfrac{2^q\phi(z_q)}{z_q} \lessapprox (1 - z_q^{-2})^{-1}$.  Substituting $ \phi(z) \coloneqq \tfrac{1}{\sqrt{2 \pi}} {\exp}(\tfrac{-z^2}{2}) $ into $ 2^{-q} \lessapprox \tfrac{\phi(z_q)}{z_q} $, this re-arranges to $ z_q \approx \sqrt{q{\log}(4) - 2{\log}(\smash{z_q}) - {\log}(2\pi)} $ which gives $ z_q \lessapprox \sqrt{q \log(4)} $. Substituting this upper bound for $ z_q $ recursively into the approximation  for $ z_q $ gives the lower bound $ z_q \gtrapprox  \sqrt{q \log(4) - \log(q \pi \log(16))}$. \qedhere
+\end{proof}
+
+\begin{lemma}
+\label{lemma:approximate_moments}
+For integers $ p \geq 2 $ we have $ \int_{0}^{z} \phi(s)^{1-p} \dd{s} \approx \tfrac{\phi(z)^{1-p}}{(p-1)z}  $ and $ \int_{z}^{\infty} (s-z)^p\phi(s) \dd{s} \approx \tfrac{p!\phi(z)}{z^{p+1}} $.
+\end{lemma}
+
+\begin{proof}
+The relation  $ \int_{0}^{z} \phi(s)^{1-p} \dd{s} \approx \tfrac{\phi(z)^{1-p}}{(p-1)z}  $ is demonstrated by applying L'H\^{o}pital's rule
+\begin{equation*}
+\lim_{z \to \infty} \dfrac{\int_{0}^{z} \phi(s)^{1-p} \dd{s}}{\left(\dfrac{\phi(z)^{1-p}}{(p-1)z}\right)} 
+=  \lim_{z \to \infty} \dfrac{\phi(z)^{1-p}}{\phi(z)^{1-p}\left(1 - \dfrac{1}{(p-1)z^2} \right)} 
+= \lim_{z \to \infty} \cfrac{1}{\left(1 - \dfrac{1}{(p-1)z^2}\right)} 
+= 1.
+\end{equation*}
+
+However, the second integral $ \int_{z}^{\infty} (s-z)^p\phi(s) \dd{s} $ is more involved and proceeds by integrating by parts. We differentiate $ (s-z)^p $ to give $ \dv{s} (s-z)^p = p (s-z)^{p-1} $ and integrate $ \phi(s) $, where we recall that $ \int_{z}^{\infty} \phi(s) \dd{s}  = \phi(z)(\tfrac{1}{z} - \tfrac{1}{z^3} + \cdots) $ and hence $ \int_{-\infty}^{z} \phi(s) \dd{s}  = 1 -\phi(z)(\tfrac{1}{z} - \tfrac{1}{z^3} + \cdots) $, hence giving $ {\dv{s}} (\phi(s)(\tfrac{1}{s} - \tfrac{1}{s^3} + \cdots))  = -\phi(s) $. Performing the integration by parts gives
+\begin{equation*}
+\int_{z}^{\infty} (s-z)^p\phi(s) \dd{s} \lessapprox \underbrace{\eval[p(s-z)^{p-1}\phi(s)\left(-\dfrac{1}{s} + \dfrac{1}{s^3} - \cdots\right)|_{z}^{\infty}}_{{} = 0} {} + p \int_{z}^{\infty} (s-z)^{p-1} \phi(s) \left(\dfrac{1}{s} - \dfrac{1}{s^3} + \cdots\right) \dd{s}.
+\end{equation*}
+Upper bounding $ (\tfrac{1}{s} - \tfrac{1}{s^3} + \cdots )$ by $ \tfrac{1}{z} $ and iteratively evaluating the integral gives
+\begin{equation*}
+\int_{z}^{\infty} (s-z)^p\phi(s) \dd{s}
+\lessapprox \dfrac{p}{z} \int_{z}^{\infty} (s-z)^{p-1} \phi(s) \dd{s} 
+\lessapprox \dfrac{p!}{z^p} \int_{z}^{\infty} \phi(s) \dd{s} 
+\lessapprox \dfrac{p!}{z^p} \left(\dfrac{\phi(z)}{z}\right) 
+\lessapprox \frac{p!\phi(z)}{z^{p+1}}. \qedhere
+\end{equation*}
+\end{proof}
+
+\subsection{Piecewise constant approximations on equal intervals}
+\label{sec:piecewise_constant_approximations_on_equal_intervals}
+
+Mathematically it is very straight forward to arrive at a piecewise constant approximation as the simplest possible approximation to use, especially using equally spaced intervals in the domain $ [0, 1] $, where the approximation can readily include the singular endpoints 0 and 1. As the range of values will go from a continuum to a discrete set, we say the distribution has become \emph{quantised} and denote our approximation as $ Q $ where $ Q \approx \Phi^{-1} $, where for a uniform random variable $ U \sim \mathcal{U}(0, 1)$ we have $ Z \coloneqq \Phi^{-1}(U) $ and $ \tilde{Z} \coloneqq Q(U) $. An example of such an approximation, whose construction we will detail shortly, is shown in figure~\ref{fig:piecewise_constant_gaussian_approximation}, where the error is measured using the $ L^p $ norm $ \lVert f \rVert_p \coloneqq (\int_0^1 \abs{f(u)}^p \dd{u})^{1/p} $, where the convergence in this norm is demonstrated in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}.
+
+
+
+\begin{figure}[htb]
+\centering
+\subfigure[An example approximation using 8 intervals.\label{fig:piecewise_constant_gaussian_approximation}]{\includegraphics{piecewise_constant_gaussian_approximation}} \hfill 
+\subfigure[The $ L^p $ error and the bound from theorem~\ref{thm:piecewise_constant_approximation_error}.\label{fig:piecewise_constant_gaussian_approximation_error}]{\includegraphics{piecewise_constant_gaussian_approximation_error}}
+\caption{The piecewise constant approximation with equally spaced intervals, and its error in various norms.}
+\label{fig:piecewise_constant_approximation}
+\end{figure}
+
+Before presenting theorem~\ref{thm:piecewise_constant_approximation_error}, we can briefly comment on the error we can observe from figure~\ref{fig:piecewise_constant_gaussian_approximation_error}. Specifically looking at the root mean squared error (RMSE), corresponding to the $ L^2 $ norm, we can see that increasing the number of intervals from 2 to $ 10^3 $ gives a drop of $ 10^2 $ in the RMSE. For our multilevel Monte Carlo applications later, having approximately 1000 intervals gives a very good fidelity, whereas the lower fidelity approximations with much higher errors, like the Rademacher random variables resembling the distribution with 2 intervals, has a much lower fidelity. Being able to achieve a reasonable fidelity from our approximation ensures that we achieve the largest portion of the possible temporal savings offered from our approximations. 
+
+As we have already mentioned, the piecewise constant approximation is closely related to the resulting approximation produced by \citet{giles2019random_quadrature}, whose approximation arises from considering uniforms truncated to a finite number of bits of precision. Thus our main result from this section, theorem~\ref{thm:piecewise_constant_approximation_error}, closely resembles a related result by \citet[Theorem~1]{giles2019random_quadrature}. Thus, to put our extension into context, we paraphrase the similar result from \citet{giles2019random_quadrature}, which is that for a piecewise constant approximation using $ 2^q $ intervals, for some integer $ q \gg 1 $, the for constant values equal to each intervals midpoint they have $ \lVert Z - \tilde{Z}\rVert_2^2 = O(2^{-q}q^{-1}) $. Our result from theorem~\ref{thm:piecewise_constant_approximation_error} extends this to $ \lVert Z - \tilde{Z}\rVert_p^p = O(2^{-q} q^{-p/2}) $ for $ p \geq 2 $, and numerous other possible constant values other than the mid point. Our result from theorem~\ref{thm:piecewise_constant_approximation_error}, where we are able to increase the order of the error to arbitrarily high norms is interesting in its own right, as it shows that as the intervals become increasing small (corresponding to $ q \to \infty $), then the dominant term effecting the $ L^p $ error is the geometric decay $ O(2^{-2/p}) $, and thus the convergence exists but is slower in higher norms, with the polynomial $ O(q^{-1/2}) $ term being comparatively negligible (as we can see in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}). Additionally, in the related analysis which incorporates these approximate random variables into a multilevel Monte Carlo framework by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested}, their bounds on the variance of the multilevel Monte Carlo correction term (discussed more later) rely on the existence of the $ L^p $ error for $ p > 2 $. Hence, while this strengthening of the result may appear only slight, it is crucial for other application within multilevel Monte Carlo. 
+
+We are now in a position to present the main result concerning piecewise constant approximations, namely theorem~\ref{thm:piecewise_constant_approximation_error}. In this we will leave the interval values largely unspecified, and later demonstrate in corollary~\ref{cor} several choices for the mid-point fit within the scope of theorem~\ref{thm:piecewise_constant_approximation_error}.
+
+
+\begin{theorem}
+\label{thm:piecewise_constant_approximation_error}
+Let a piecewise constant approximation $ Q \approx \Phi^{-1} $ use $ 2^q $ equally spaced intervals for some integer $ q > 1 $. Denote the intervals $ I_k \coloneqq (k2^{-q}, (k+1)2^{-q}) \equiv (u_k, u_{k+1}) $ for $ k \in \{0, 1, 2, \ldots, K\} $ where $ K \equiv 2^q - 1 $. On each interval the approximation constant is $ Q_k \coloneqq Q(u) $ for $ u \in I_k $. We assume there exists a constant $ C $ which is independent of $ q $ such that the following conditions are satisfied:
+\begin{enumerate}
+\item \label{con:symmetry} $ Q_k = -Q_{K-k} $ for $ k \in \{0,1,2,\ldots,K\} $. 
+\item \label{con:intermediate_values} $ \Phi^{-1}(u_k) \leq Q_k \leq \Phi^{-1}(u_{k+1}) $ for $ k \in \{2^{q-1}, 2^{q-1} + 1, \ldots, K-1\} $.
+\item \label{con:bounded_asymptotic_growth} $ \Phi^{-1}(u_K) \leq Q_K \leq \Phi^{-1}(u_K) + Cq^{-1/2} $.
+\end{enumerate}
+For any $ p \geq 2 $ we have $ \lVert  Q - \Phi^{-1} \rVert_p^p = O(2^{-q}q^{-p/2})$ for $ q \gg 1 $.
+\end{theorem}
+
+\begin{proof} Defining $ A_k \coloneqq \int_{u_k}^{u_{k+1}} \lvert\Phi^{-1}(u) - Q_k\rvert^p \dd{u} $ for $ k \in \{0,1, \ldots, K\} $ with $ u_{K+1} \coloneqq 1 $ where $ K $ is an even number, then we have $ \lVert Q - \Phi^{-1} \rVert_p^p = \sum_{k=0}^{K} A_k $.  We use condition (\ref{con:symmetry}) to reduce our considerations to the domain $ (\tfrac{1}{2}, 1) $, where $ \Phi^{-1} $ is strictly convex, and thus obtain $ \lVert Q - \Phi^{-1} \rVert_p^p = 2 \sum_{k=2^{q-1}}^{K-1} A_k + 2 A_K $. As $ \Phi^{-1} $ is convex, then from the intermediate value theorem there exists a $ \xi_k \in I_k $ such that $ Q_k = \Phi^{-1}(\xi_k) $. Noting that $ \dv{z} \Phi^{-1}(z) = \tfrac{1}{\phi(\Phi^{-1}(z))} $, then from the mean value theorem there exists an $ \eta_k \in [u_k, \xi_k)$ such that $ \Phi^{-1}(u) - \Phi^{-1}(\xi_k) = \tfrac{u - \xi_k}{\phi(\Phi^{-1}(\eta_k))} $ for any $ u \in [u_k, \xi_k)$. Furthermore, as $ \phi $ is monotonically decreasing in $ (\tfrac{1}{2}, 1) $, then introducing $ z_k \coloneqq \Phi^{-1}(u_k) $ we have $ \lvert \Phi^{-1}(u) - \Phi^{-1}(\xi_k)\rvert \leq \tfrac{2^{-q}}{\phi(z_{k+1})}$.  Substituting this bound into $ \sum_{k=2^{q-1}}^{K-1} A_k $ in our expression for $ \lVert Q - \Phi^{-1}\rVert_p^p $ gives
+\begin{equation*}
+\sum_{k=2^{q-1}}^{K-1} A_k 
+\leq \sum_{k=2^{q-1}}^{K - 1} \left(\frac{2^{-q}}{\phi(z_{k+1})}\right)^p 2^{-q} 
+\leq 2^{-qp - q} \sum_{k=2^{q-1}}^{K - 1}  \phi(z_{k+1})^{-p} 
+\leq 2^{-pq} \int_{\frac{1}{2}}^{1 - 2^{-q}} \phi(\Phi^{-1}(u))^{-p} \dd{u} + 2^{-q(p+1)}\phi(z_K)^{-p},
+\end{equation*}
+where the last bound comes from considering a translated integral. Changing integration variables the integral becomes $  \int_{0}^{z_K} \phi(z)^{1-p} \dd{z} $, from which we can use lemma~\ref{lemma:approximate_tail_values} to give 
+\begin{equation*}
+\sum_{k=2^{q-1}}^{K-1} A_k 
+\leq \frac{2^{-q} z_K^{-p}}{p-1} \left(\frac{2^q\phi(z_K)}{z_K}\right)^{1-p} + 2^{-q}z_K^{-p} \left(\frac{2^q\phi(z_K)}{z_K}\right)^{-p}
+\leq 2^{-q} \left(\frac{p}{p-1}\right) z_K^{-p},
+\end{equation*}
+where the last bound follows from lemma~\ref{lemma:approximate_tail_values}.
+
+Turning our attention to the final interval's contribution $ A_K $, then using Jensen's inequality, condition~(\ref{con:bounded_asymptotic_growth}), and lemmas~\ref{lemma:approximate_tail_values} and \ref{lemma:approximate_moments} we obtain
+\begin{equation*}
+A_K 
+\leq 2^{p-1} \int_{z_K}^{\infty} \lvert Q_K - z\rvert^p \phi(z) \dd{z} +  2^{p-1} \int_{u_K}^{1} \lvert Q_K - z_K \rvert^p \dd{u} 
+\leq 2^{p-q-1} p! z_K^{-p} + 2^{p-q-1} C^p q^{-p/2}.
+\end{equation*}
+\todo{Have I assumed $ p $ is even for these integrands? Check the integration limits. Are the lemmas still valid with the abs?}
+
+Combining our two bound for $ \sum_{k=2^{q-1}}^{K-1} A_k $ and $ A_K $ into our expression for  $ \lVert Q - \Phi^{-1}\rVert_p^p $ we obtain
+\begin{equation*}
+\lVert Q - \Phi^{-1}\rVert_p^p 
+\leq 2^{-q+1} \left(\frac{p}{p-1}\right) z_K^{-p} + 2^{p-q} p! z_K^{-p} + 2^{p-q} C^p q^{-p/2} 
+\leq O(2^{-q}q^{-p/2}),
+\end{equation*}
+where the coefficients inside the $ O $-notation are only a function of $ p $ and not of $ q $. \qedhere
+\end{proof}
+
+\begin{corollary}
+\label{cor:piecewise_constant_constructions}
+Using a rotationally symmetric piecewise constant approximation of $ \Phi^{-1} $ with intervals $ I_k $, then for approximate Gaussian random variables $ \tilde{Z} $ using constants $ Z_k $ constructed as either
+\begin{equation*}
+\label{eqt:approximate_normal_expected_value_construction}
+\tilde{Z}_k^{L^1} \coloneqq \mathbb{E}(Z\mid \Phi(Z) \in I_k), 
+\qquad 
+\tilde{Z}_k^\mathrm{C} \coloneqq {\Phi^{-1}}\left(\dfrac{\max I_k + \min I_k}{2}\right), 
+\qquad \text{or} \qquad 
+\tilde{Z}_k^\mathrm{I} \coloneqq 
+\begin{cases}
+\Phi^{-1}(\min I_k) & \text{if } \min I_k \geq 0.5 \\
+\Phi^{-1}(\max I_k) & \text{if } \max I_k < 0.5, 
+\end{cases}
+\end{equation*}
+then all finite moments of $ \lvert\tilde{Z}\rvert $ are uniformly bounded, and conditions~(\ref{con:symmetry}--\ref{con:bounded_asymptotic_growth}) of theorem~\ref{thm:piecewise_constant_approximation_error} are satisfied. 
+\end{corollary}
+
+\begin{proof}
+We begin by considering the values defined by $ \tilde{Z}_k^{L^1} $ and let $ \tilde{Z} \equiv  \tilde{Z}_k^{L^1}$. As the approximation is rotationally symmetric, we consider the domain $ (\tfrac{1}{2}, 1) $ where $ Z $ and $ \tilde{Z} $ are both positive. Letting the interval $ I_k $ lie in this domain, then from Jensen's inequality and the law of iterated expectations we obtain 
+\begin{equation*}
+\mathbb{E}(\tilde{Z}^n) = \mathbb{E}((\mathbb{E}_{I_k}(Z \mid \Phi(Z) \in I_k))^n) \leq \mathbb{E}(\mathbb{E}_{I_k}(Z^n \mid \Phi(Z) \in I_k)) =  \mathbb{E}(Z^n) < \infty,
+\end{equation*}
+for any $ 1\leq n < \infty $, where the last equality is a standard result \citep[C.2]{blundell2014concepts}. Mirroring this result to the full domain $ (0, 1) $, we can directly see that $ \lvert \tilde{Z} \rvert $ is uniformly bounded. Furthermore, as $ \Phi^{-1} $ is convex in $ [0.5, 1) $, then by the Hermite-Hadamard inequalities the value $ \tilde{Z}_k^{L^1} $ is an upper bound on $ \tilde{Z}_k^\mathrm{C} $ and $ \tilde{Z}_k^\mathrm{I} $, and so these too are uniformly bounded. 
+
+As $ \tilde{Z}_k^{L^1} $ is the upper bound of these choices, it will suffice to show that this satisfies conditions~(\ref{con:symmetry}--\ref{con:bounded_asymptotic_growth}).  Continuing with using $ \tilde{Z} \equiv  \tilde{Z}_k^{L^1}$, we it is immediately obvious that conditions~(\ref{con:symmetry}) and (\ref{con:intermediate_values}) satisfied, so we only need to show condition~(\ref{con:bounded_asymptotic_growth}) is met. The lower bound in condition~(\ref{con:bounded_asymptotic_growth}) is immediately satisfied, so to show the upper bound is also, we consider the difference between the smallest value in the final $ I_K $ interval, namely $ z_K $, and the interpolation value $ Q_K $ where $ Q_K = \mathbb{E}(Z \mid \Phi(z) \in I_K) $. Inspecting the difference we obtain
+\begin{equation*}
+Q_K - z_K = 2^q \int_{u_K}^{1} (\Phi^{-1}(u) - \Phi^{-1}(u_K) \dd{u} = 2^q \int_{z_K}^{\infty} (z - z_K) \phi(z) \dd{z} \lessapprox  2^q \dfrac{\phi(z_K)}{z_K^2} \lessapprox \dfrac{1}{z_K} (1 - z_K^{-2})^{-1} \leq \dfrac{4}{3z_K},
+\end{equation*}
+where the first inequality follows from lemma~\ref{lemma:approximate_moments}, the second from lemma~\ref{lemma:approximate_tail_values}, and the last uses $ (1 - z_K^{-2})^{-1} \leq \tfrac{4}{3} $ for $ q \geq 2 $. We bound the final $ \tfrac{1}{z_K} $ term using lemma~\ref{lemma:approximate_tail_values} to give
+\begin{equation*}
+\dfrac{1}{z_K} \lessapprox \frac{1}{\sqrt{q\log(4)}} \left(1 + \frac{\log(q\pi\log(16))}{q\log(16)}\right) \leq  \frac{1}{\sqrt{q\log(4)}}\left(1 +  \frac{\mathrm{\pi}}{\mathrm{e}}\right) <  \frac{1.831}{\sqrt{q}}
+\end{equation*}
+for $ q \geq 0.313 $, where the factor $ \tfrac{\pi}{\mathrm{e}} $ comes from differentiating the first parenthesised expression with respect to $ q $, with its maximum at $ q = \tfrac{\mathrm{e}}{\pi\log(16)} \approx 0.312 $. Using this bound we obtain $ Q_K \leq z_K + 2.45 q^{-1/2} $ for $ q \geq 2 $. \qedhere
+\end{proof}
+
+We can remark that the $ \tilde{Z}_k^\mathrm{C} $ construction from corollary~\ref{cor:piecewise_constant_constructions} is equivalent to the central truncated value produced from the framework by \citet[(4)]{giles2019random_quadrature}.
+
+In any piecewise constant approximations used, such as those in figure~\ref{fig:piecewise_constant_approximation}, we will use the constants defined by  the $ \tilde{Z}_k^{L^1} $ construction from corollary~\ref{cor:piecewise_constant_constructions}. Furthermore, we can see that our bound from theorem~\ref{thm:piecewise_constant_approximation_error} appears tight in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}.
+
+\subsection{Piecewise linear approximations on geometric intervals}
+\label{sec:piecewise_linear_approximations_on_geometric_intervals}
+
+Looking at the piecewise constant approximation in figure~\ref{fig:piecewise_constant_gaussian_approximation}, it is clear there are two immediate improvements that can be made. The first is to go up to a piecewise linear interpolation, which is considerable more appropriate for the central region. Secondly, the intervals should not be of equal sizes, but denser near the singularities. We will make both these modifications in a single step, where we will construct a piecewise linear approximation with geometrically decaying intervals widths which are dense near the singularities. For brevity we will denote this just as the piecewise linear approximation. To give a preview of this approximation, an example piecewise linear approximation using 8 intervals is shown in figure~\ref{fig:piecewise_linear_gaussian_approximation}. The precise nature of interval widths, and how the linear function is fitted will be detailed shortly, but from a direct comparison against figure~\ref{fig:piecewise_constant_gaussian_approximation} it is clear that the fidelity of a piecewise linear approximation is much better than the piecewise constant. 
+
+The main result from this section will be theorem~\ref{thm:piecewise_linear_approximation_error}, which will bound the $ L^p $ error of our piecewise constant approximation. The proof will proceed in a similar fashion the proof of theorem~\ref{thm:piecewise_constant_approximation_error}, where we will bound sum of the central intervals and the end intervals separately. For the central intervals we will use the Peano kernel theorem to bound the point wise error, and in the end intervals several results will be a mixture of exact results and the use of our bounds from lemmas~\ref{lemma:approximate_tail_values} and \ref{lemma:approximate_moments}.
+
+\begin{figure}[htb]
+\centering
+\subfigure[A piecewise linear approximation using 8 dyadic intervals.\label{fig:piecewise_linear_gaussian_approximation}]{\includegraphics{piecewise_linear_gaussian_approximation}} \hfill 
+\subfigure[The $ L^p $ error for $ p = 2 $ from the singular interval and the bounds from theorem~\ref{thm:piecewise_linear_approximation_error}.\label{fig:piecewise_linear_gaussian_approximation_error_singular_interval}]{\includegraphics{piecewise_linear_gaussian_approximation_error_singular_interval}}
+\caption{The piecewise linear approximation with geometric intervals, and its error in the singular interval.}
+\label{fig:piecewise_linear_approximation}
+\end{figure}
+
+\begin{theorem}
+\label{thm:piecewise_linear_approximation_error}
+For a rotationally symmetric approximation $ D \approx \Phi^{-1}$, with $ K $ intervals in $ (0, \tfrac{1}{2}) $, we define the $ k $-th interval $ I_k \coloneqq [\tfrac{r^k}{2}, \tfrac{r^{k-1}}{2})$ for $ k \in \{1,2,\ldots, K-1\} $ and $ I_K \coloneqq (0, \tfrac{r^{K-1}}{2}) $ for some decay rate $ 0 < r < 1 $. Each interval uses a piecewise linear approximation $ D_k(u) \equiv D(u) $ for any $ u \in I_k $. The gradient and intercept in each interval is set by the $ L^2 $ minimisation $ D_k \coloneqq \argmin_{D' \in \mathcal{P}_1} \int_{I_k}\lvert\Phi^{-1}(u) - D'(u)\rvert^2 \dd{u} $ where $ \mathcal{P}_1 $  is the set of all 1-st order polynomials. Then we have for any $ 1 \leq p < \infty  $
+\begin{equation*}
+\lVert D - \Phi^{-1}\rVert_p^p 
+= O((1-r)^{2p}) +
+O(r^{K-1} {\log}^{-p/2}(r^{1-K}\sqrt{2/\pi}))  = O((1-r)^{2p}) +
+o(r^{K-1}).
+\end{equation*}
+\end{theorem}
+
+\begin{proof}
+Considering the domain $ (0, \tfrac{1}{2}) $, we split the contribution into those from the intervals without the singularity, and that from the final interval with the singularity, where
+\begin{equation*}
+\lVert D - \Phi^{-1}\rVert_p^p   = 2  \sum_{k=1}^{K-1} \int_{I_k} \lvert D_k(u) - \Phi^{-1}(u)\rvert^p \dd{u}  + 2 \int_{I_K} \lvert D_K(u) - \Phi^{-1}(u)\rvert^p \dd{u},
+\end{equation*}
+where the factors of 2 correct for us splitting the domain $ (0, 1) $ into $ (0, \tfrac{1}{2}) $. 
+
+Beginning with the non-singular intervals, we express the point-wise error using the Peano kernel theorem \citep{iserles2009first,powell1981approximation}, (which we will later bound). For notational simplicity, we denote the approximated functioned as $ f $, where $ f \equiv \Phi^{-1} $, and a given interval as $ [a,b] \equiv I_k  $. The $ L^2 $ optimal linear approximation is $ \alpha(f) + \beta(f) u $ for $ u \in [a,b] $ where $ \alpha $ and $ \beta $ are functionals. The point-wise error is $ f(u) - \alpha(f) - \beta(f)u $ is a linear mapping $ L $ acting on $ f $ where $ L(f)(u) \coloneqq  f(u) - \alpha(f) - \beta(f)u $. By construction $ L $ annihilates linear functions, so the Peano kernel is $ k(\xi; u) \coloneqq (u - \xi)^+ - \alpha((\cdot - \xi)^+) - \beta((\cdot - \xi)^+)u \equiv (u - \xi)^+ - \bar{\alpha}(\xi) - \bar{\beta}(\xi)u $ for $ \xi \in [a,b] $ where we define $ \bar{\alpha}(\xi) \coloneqq \alpha((\cdot - \xi)^+) $ and similarly for $ \bar{\beta}(\xi) $. The point-wise error is $ \varepsilon(u) \coloneqq L(f)(u) = \int_{a}^{b} k(\xi; u) f''(\xi) \dd{\xi} $.
+
+
+
+Determine the kernel's intercept and gradient, we use that they are $ L^2 $ optimal, and so the functional derivative of $ \int_a^b \varepsilon^2(u) \dd{u} $ with respect to $ \alpha $ and $ \beta $ are zero. Setting the two functional derivatives to zero gives the simultaneous equations
+\begin{equation*}
+\alpha(f)(b-a) + \beta(f) \left(\dfrac{b^2 - a^2}{2}\right)  = \int_{a}^{b} f(u) \dd{u} 
+\qquad \text{and} \qquad 
+\alpha(f)\left(\dfrac{b^2 - a^2}{2}\right) + \beta(f) \left(\dfrac{b^3 - a^3}{3}\right)  = \int_{a}^{b} u f(u) \dd{u}.
+\end{equation*}
+It is important to notice that because we chose the $ L^2 $ norm, these are a set of linear simultaneous equations, and thus $ \alpha $ and $ \beta $ are linear functionals, thus showing that $ L $ is linear, (a requirement of the Peano kernel theorem). Evaluating these for the kernel function ($ f \to (\cdot - \xi)^+  $) gives
+\begin{equation*}
+\bar{\alpha}(\xi)  = - \dfrac{(b - \xi)^2 ((b+a)\xi - 2a^2)}{(b - a)^3} 
+\qquad \text{and} \qquad 
+\label{eqt:peano_kernel_coefficient}
+\bar{\beta}(\xi) = \dfrac{(b - \xi)^2 (2\xi + b - 3a)}{(b - a)^3}.
+\end{equation*}
+
+Thus, the point wise error is 
+\begin{equation*}
+\varepsilon(u)  = \int_{a}^{b} ((u - \xi)^+ - \bar{\alpha}(\xi) - \bar{\beta}(\xi) u ) f''(\xi) \dd{\xi} = (b - a)^2 \int_{0}^{1} ((\tilde{u} - \tilde{\xi})^+ - (1 - \tilde{\xi}^2)(\tilde{\xi} + \tilde{u})) f''((b - a)\tilde{\xi} + a) \dd{\tilde{\xi}},
+\end{equation*}
+where to achieve the last equality we rescaled our interval $ [a, b] \to [0, 1] $  and variables $ \eta \to \tilde{\eta}  $ where $ \tilde{\eta} \coloneqq \tfrac{\eta - a}{b - a} $. Taking the absolute value and applying Jensen's inequality immediately gives 
+\begin{equation*}
+\lvert \varepsilon(u) \rvert \leq - 6 (b - a)^2  {\dv[2]{}{u}}\Phi^{-1}(a) = - 6 a^2 \left(\dfrac{1-r}{r}\right)^2  {\dv[2]{}{u}}\Phi^{-1}(a) \leq 2.59 \left(\dfrac{1-r}{r}\right)^2,
+\end{equation*}
+where for the first inequality we used that $ {\dv[2]{}{u}}\Phi^{-1} $ is maximal at the lower boundary, and for the second inequality we bound this by the maximum with respect to $ a $ (at 0.177). Using this expression for the point wise error in our summation of the non-singular intervals gives (as $ r \to 1 $)
+\begin{equation*}
+ \sum_{k=1}^{K-1} \int_{I_k} \lvert D_k(u) - \Phi^{-1}(u)\rvert^p \dd{u}
+= \sum_{k = 1}^{K - 1} \int_{I_k} \lvert\varepsilon(u)\rvert^p \dd{u}
+\leq 2.59^p \left(\dfrac{1 - r}{r}\right)^{2p}  \int_{0}^{\frac{1}{2}} \dd{u}
+= O((1-r)^{2p}).
+\end{equation*}
+
+
+We now consider the interval $ [0, b] \equiv I_K $ containing the singularity at 0, which have the intercept and gradient
+$ \alpha = \tfrac{1}{b} \int_{0}^{b} \Phi^{-1}(u) \dd{u} - \tfrac{b\beta}{2}  $
+and 
+$ \beta  = \tfrac{12}{b^3} \int_{0}^{b} (u - \tfrac{b}{2}) \Phi^{-1}(u) \dd{u} $.
+These integrals can be calculated exactly (with a change of variables), where is we denote $ z_b \coloneqq \Phi^{-1}(b) $ we obtain
+\begin{equation*}
+\alpha = \dfrac{2\phi(z_b)}{b} - \dfrac{3\Phi(\sqrt{2}z_b)}{b^2\sqrt{\pi}}
+\qquad \text{and} \qquad 
+\beta  = \dfrac{6}{b^3} \left(\dfrac{\Phi(\sqrt{2} z_b)}{\sqrt{\pi}} - b\phi(z_b)\right).
+\end{equation*}
+For the gradient, as the intervals becomes ever smaller and $ b \to 0 $, we can use lemma~\ref{lemma:approximate_tail_values} to give
+\begin{equation*}
+\beta  
+\approx -\dfrac{6}{b^3} \left(\phi^2(z_b)\left(\dfrac{1}{z_b} - \dfrac{1}{2 z_b^3}\right) + b \phi(z_b)\right)
+\approx -\dfrac{6z_b}{b}\left(\dfrac{1}{2z_b^2} + O(z_b^{-4})\right)
+\approx \dfrac{-3}{bz_b},
+\end{equation*}
+where in the first equality we used  $ \phi(\sqrt{2}z) \equiv \sqrt{2\pi}\phi^2(z) $. Interestingly, this mean the range of values $ \beta b \approx -\tfrac{3}{z_b} \to 0 $, and our approximation ``flattens'' relative to the interval $ [0, b] $ as $ b \to 0 $.
+
+With the intercept and gradient in the singular interval $ I_K $ known exactly, we define the two points $ u_- $ and $ u_+ $ where the error is vanishing, where $ 0 < u_- < u_+ < b $, and there are two as $ \Phi^{-1} $ is concave in $ (0, \tfrac{1}{2}) $. Corresponding to these we define $ z_- \coloneqq \Phi^{-1}(u_-) $ and $ z_+ \coloneqq \Phi^{-1}(u_+) $, where $ -\infty < z_- < z_+ < z_b < 0 $. Thus in the singular interval we have
+\begin{equation*}
+\int_{I_K} \lvert D_K(u) - \Phi^{-1}(u)\rvert^p \dd{u} 
+= \int_{-\infty}^{z_-} \lvert z - \alpha - \beta \Phi(z)\rvert^p \phi(z) \dd{z} + \int_{z_-}^{z_b} \lvert z - \alpha - \beta \Phi(z)\rvert^p \phi(z) \dd{z}
+\end{equation*}
+Using lemmas~\ref{lemma:approximate_tail_values} and \ref{lemma:approximate_moments}, then for the first of these integrals we obtain
+\begin{equation*}
+\int_{-\infty}^{z_-} \lvert z - \alpha - \beta \Phi(z)\rvert^p \phi(z) \dd{z}
+\leq \int_{-\infty}^{z_-} \lvert z - z_-\rvert^p \phi(z) \dd{z}
+\leq \int_{-\infty}^{z_b} \lvert z - z_b\rvert^p \phi(z) \dd{z}
+\approx  \dfrac{p!\phi(z_b)}{\lvert z_b\rvert^{p+1}}
+=  O\left(\dfrac{b}{\lvert z_b \rvert^p}\right),
+\end{equation*}
+and for the second integral we similarly obtain
+\begin{equation*}
+\int_{z_-}^{z_b} \lvert z - \alpha - \beta \Phi(z)\rvert^p \phi(z) \dd{z}
+\leq \int_{-\infty}^{z_b} \lvert z_+ - \alpha - \beta \Phi(z)\rvert^p \phi(z) \dd{z}
+\leq \lvert \beta b \rvert^p \int_{0}^{b}\dd{u}
+\approx \dfrac{3^p}{\lvert z_b\rvert^p} b
+=  O\left(\dfrac{b}{\lvert z_b \rvert^p}\right).
+\end{equation*}
+
+Combining the results for the central intervals and the singular interval we obtain
+\begin{equation*}
+\lVert D - \Phi^{-1}\rVert_p^p
+= O((1-r)^{2p}) + O\left(\dfrac{b}{\lvert z_b \rvert^p}\right) 
+= O((1-r)^{2p}) +
+O(r^{K-1} {\log}^{-p/2}(r^{1-K}\sqrt{2/\pi}))  
+= O((1-r)^{2p}) +
+o(r^{K-1}),
+\end{equation*}
+where for the second equality we used lemma~\ref{lemma:approximate_tail_values} in the limit $ r^{K-1} \to 0 $. \qedhere
+\end{proof}
+
+We can see then from theorem~\ref{thm:piecewise_linear_approximation_error} that the $ O((1 - r)^{2p}) $ comes from the central regions, and is reduced by taking $ r \to 1 $, and the $ o(r^{K-1}) $ term is from the final singular interval, and is reduced by taking $ r^{K-1} \to 0 $. Of these two, we can readily assess the tightness of the bound from the singular interval, which for $ p = 2 $ is shown in figure~\ref{fig:piecewise_linear_gaussian_approximation_error_singular_interval}, from which we can see our $ O $-bound is tight. (Other values of $ p $ give similar results to those in figure~\ref{fig:piecewise_linear_gaussian_approximation_error_singular_interval}, so for clarity we only show $ p = 2 $). The key point of interest with this result is that the error from the central regions and the singular region are decoupled. In order to decrease the overall error, it is not sufficient to only increase the number of intervals ($ K \to \infty $), which would only improve the error from the singular interval, but the decay rate must also be decreased ($ r \to 1 $). The independence and interplay of these two errors is important for balancing the fidelity between the central and edge regions.
+
+
+There are three natural follow on questions concerning this piecewise linear construction presented in theorem~\ref{thm:piecewise_linear_approximation_error}: can we make it continuous, can we use higher order polynomials, and how can we determine the polynomials optimal coefficients?
+
+\todo{
+
+Why not make it continuous.?
+What about higher order (bound using linear bound)?
+How to find the coefficients?}
+
+
+
+
+
+
+
+\todo[inline=true, caption={Approx rv section}]{
+\begin{enumerate}
+\item Approximate Gaussian random variables
+\begin{enumerate}
+\item Approximate the inverse CDF
+\item The Gaussian distribution.
+\item Piecewise constant approximation
+\item Piecewise linear (polynomial?) approximation with dyadic intervals.
+\item The RMSE of the approximations. 
+\end{enumerate}
+\end{enumerate}}
 
 \section{High performance implementations}
 \label{sec:high_performance_impementations}
+
+\begin{table}[htb]
+\centering
+\captionof{table}{Dyadic intervals and their corresponding array indices.}
+\label{tab:dyadic_intervals}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{c|ccccccc}
+Index & 0 & 1 & 2 & $ \cdots $ & $ n $ & $ \cdots $ & $ N $ \\ \hline
+Interval & $ [\tfrac{1}{2}, 1) $ & $ [\tfrac{1}{4}, \tfrac{1}{2}) $ & $ [\tfrac{1}{8}, \tfrac{1}{4}) $ & $ \cdots $ & $ [\tfrac{1}{2^{n+1}}, \tfrac{1}{2^n}) $ & $ \cdots $ & $ (0, \tfrac{1}{2^N}) $
+\end{tabular}
+\end{table}
 
 \section{Multilevel Monte Carlo}
 \label{sec:multilevel_monte_carlo}
@@ -110,10 +429,6 @@ Section~\ref{sec:approximate_random_variables} introduces and analyses our two a
 
 \section{Conclusions}
 \label{sec:conclusions}
-
-
-
-
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
