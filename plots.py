@@ -126,3 +126,25 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     plt.ylim(1e-8, 1e-1)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation_error_singular_interval.pdf', format='pdf', bbox_inches='tight', transparent=True)
+
+def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False):
+    polynomial_orders = range(6)
+    interval_sizes = [2, 4, 8, 16]
+    plt.clf()
+    for n_intervals in interval_sizes:
+        rmse = [None] * len(polynomial_orders)
+        for polynomial_order in polynomial_orders:
+            approximate_inverse_gaussian_cdf = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals + 1, polynomial_order)  # +1 as we have the 0 interval which is measure 0.
+            discontinuities = [0.5 ** (i + 2) for i in range(n_intervals)]  # Makes the numerical integration involved in the RMSE easier.
+            rmse[polynomial_order] = integrate(lambda u: 2.0 * (norm.ppf(u) - approximate_inverse_gaussian_cdf(u)) ** 2, 0, 0.5, points=discontinuities)[0] ** 0.5
+        plt.plot(polynomial_orders, rmse, 'ko:', label='__nolengend__')
+        plt.plot([], [], 'ko', label=n_intervals)
+        plt.gca().text(polynomial_orders[-1] + 0.2, rmse[-1], str(n_intervals), va='center')
+    plt.yscale('log')
+    plt.ylabel(r'$\lVert Z - \tilde{Z}\rVert_2$')
+    plt.xlabel('Polynomial order')
+    plt.xlim(None, 5.7)
+    plt.ylim(1e-4, 1e0)
+    plt.xticks(polynomial_orders)
+    if savefig:
+        plt.savefig('piecewise_linear_gaussian_approximation_error.pdf', format='pdf', bbox_inches='tight', transparent=True)

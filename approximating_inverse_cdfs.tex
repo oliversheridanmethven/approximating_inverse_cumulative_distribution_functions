@@ -1,30 +1,64 @@
 \documentclass[manuscript,review]{acmart}
+
+
 \usepackage{mathtools} % remove this later. 
+\usepackage[boxed, vlined, linesnumbered, resetcount]{algorithm2e} 
 \usepackage{bm}
-\usepackage{todonotes}
-\usepackage{subfigure}
+\usepackage{float}
+\usepackage{listings}
 \usepackage{physics}
+\usepackage{subfigure}
+\usepackage[binary-units=true]{siunitx}
+\usepackage{todonotes}
 
-%\newcommand{\indicatorfn}{\vmathbb{1}}  % From the newtxmath package. 
-\DeclareMathOperator*{\argmin}{argmin}
 
-\citestyle{acmnumeric}
+\newfloat{lstfloat}{htbp}{lop} % To put the listings in. 
+\renewcommand{\lstlistingname}{Code} % Rename them as codes. 
+
+
+\SetAlCapSty{} % Removes bold in caption for consistency. 
+\SetAlCapSkip{0.5em} % Increase algorithm spacing between box and caption.
+\SetAlCapNameFnt{\small\sffamily}
+\SetAlCapFnt{\small\sffamily}
+\SetAlgoCaptionSeparator{.}
+
+% For formatting the C code. 
+\lstdefinestyle{C}{
+    language=C,
+    basicstyle=\small\ttfamily,
+    keywordstyle=\small\ttfamily,
+    morekeywords={omp,simd,reduction,simdlen,declare,inline,bool,restrict,half},
+    otherkeywords={\#pragma,\_\_fp16},
+    frame = single,
+    captionpos=b,
+}
+
+
+\DeclareMathOperator*{\argmin}{argmin} % For argmin. 
+
+\citestyle{acmnumeric} % For the numeric citation style. 
 
 \title{Approximating inverse cumulative distribution functions to produce approximate random variables}
+
 \author{Michael Giles}
 \email{mike.giles@maths.ox.ac.uk}
+
 \author{Oliver Sheridan-Methven}
 \email{oliver.sheridan-methven@hotmail.co.uk}
+
 \affiliation{%
 \institution{Mathematical Institute, Oxford University}
 \city{Oxford}
 \country{UK}}
+
 \keywords{approximations, random variables, inverse cumulative distribution functions, the Gaussian distribution, the non-central $ \chi^2 $ distribution, multilevel Monte Carlo, the Euler-Maruyama scheme,  and high performance computing.}
-\usepackage{blindtext}
+
 \begin{document}
+
 \begin{abstract}
 For random variables produced through the inverse transform method, approximate random variables are introduced, which are produced by approximations to a distribution's inverse cumulative distribution function. These approximations are designed to to be computationally inexpensive, and much cheaper than exact library functions, and thus highly suitable for use in Monte Carlo simulations. Two approximations are presented for the Gaussian distribution: a piecewise constant on equally spaced intervals, and a piecewise linear approximation using geometrically decaying interval dense at the distributions tails. The convergence of the approximation is demonstrated, and the computational savings are demonstrated for Python and C implementations. Implementations tailor Intel and Arm hardware are inspected, alongside hardware agnostic implementations. The savings are incorporated into a multilevel Monte Carlo framework with the Euler-Maruyama scheme to exploit the computation savings without losing accuracy. These ideas are empirically extended to the Milstein scheme, and the Cox-Ingersoll-Ross process' non-central $ \chi^2 $ distribution. 
 \end{abstract}
+
 \maketitle
 
 \clearpage
@@ -71,8 +105,9 @@ For random variables produced through the inverse transform method, approximate 
 \item Acknowledgements and funding. 
 \end{enumerate}
 }
-
 \clearpage
+
+
 \section{Introduction}
 \label{sec:introduction}
 
@@ -92,8 +127,6 @@ The work we present will directly look to substitute random variables produced f
 
 Having a framework capable of producing such various distributions will have several benefits. The first is that by refining our approximation, we will be able to construct distributions resembling the exact distribution to an arbitrary fidelity. This allows for a trade-off between computational savings, and a lower degree of variance between the exact distribution and its approximation. This naturally will introduce two different tiers of simulations: those use a cheap but approximate distribution, and those using an expensive but exact distribution. This immediately facilitates the multilevel Monte Carlo setting by \citet{giles2008multilevel}. There is a natural trade-off between the fidelity and cost, and balancing these to obtain the minimal computational time is non-trivial. As an example, Rademacher random variables, while very cheap, are too crude to fully exploit the savings possible with multilevel Monte Carlo. However, the fidelity of our approximations can be adjusted to fully exploit the possible savings. 
 
-
-
 The second benefit of our approach is that while the approximations are  specified mathematically, their implementations are left unspecified. This flexibility facilitates constructing approximations which can be tailored to a specific hardware or architecture. We will present two approximations, whose implementations can gain computational speed by transitioning the work load from primarily using the floating-point processing units to instead exploiting the cache hierarchy. Further to this, our approximations are designed with vector hardware in mind. Our approximations are non-branching, and thus suitable for implementation using single-instruction multiple data (SIMD) instructions, including Arm's new scalable vector extension (SVE) instruction set. Furthermore, for hardware with very large vectors, such as the 512-bit wide vectors on Intel's AVX-512 and Fujitsu's Arm-based A64FX (such as those in the new Fugaku supercomputer), we demonstrate implementations which although they are not vector length agnostic, they are unrivalled in their computational performance on the latest hardwares. Previous work using low-precision bit-wise approximations targetted at field-programmable gate arrays has previously motivated the related works by \citet{brugger2014mixed} and \citet{omland2015exploiting}.
 
 In this work, we will primarily focus our attention on the analysis and implementation of two approximations: a piecewise constant approximation using equally sized intervals, and a piecewise linear approximation using geometrically decaying intervals. The former is an extension of the work by \citet[Theorem~1]{giles2019random_quadrature} to higher moments, while the latter is a novel analysis, capable of both the highest speeds and fidelities. Although we will demonstrate how these are incorporated into a multilevel Monte Carlo framework, the subsequent analysis is performed by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} and omitted from this work. We will however showcase the savings a practitioner adopting our framework can expect to achieve from even a minimal incorporation of our proposals. 
@@ -108,7 +141,6 @@ We will be using the inverse transform method \citep[2.2.1]{glasserman2013monte}
 Our key proposal is to use the inverse transform method with an approximation to the inverse cumulative distribution function. As the resulting distribution will not exactly match the desired distribution, we call random variables produced in this way \emph{approximate random variables}, and those without the approximation as \emph{exact random variables} for added clarity. In general, we will denote exact Gaussian random variables with $ Z $ and approximate Gaussian random variables with $ \tilde{Z} $. The key motivation for introducing these approximate random variables is that they are computationally cheaper to generate than exact random variables. Consequently, our key motivating criteria in forming approximations will be having a simple mathematical construction, hoping that simplicity fosters fast implementations. As such there is a slight trade off between simplicity and fidelity, where we will primarily be targetting the former. 
 
 In this section, we present two approximation types: a piecewise constant, and a piecewise linear. For both of these we will produce bounds on the approximation's $ L^p $ error, focusing on their mathematical construction and analysis. Their implementation and use will be detailed more in sections~\ref{sec:high_performance_impementations} and \ref{sec:multilevel_monte_carlo}. The analysis of both of these will share and frequently use results concerning various moments of the Gaussian distribution and approximations for tail values, which we gather together in section~\ref{sec:approximating_tail_values_and_high_order_moments}. Subsequent to this, the piecewise constant and linear approximations are analysed in sections~\ref{sec:piecewise_constant_approximations_on_equal_intervals} and \ref{sec:piecewise_linear_approximations_on_geometric_intervals}.
-
 
 \subsection{Approximating tail values and high order moments}
 \label{sec:approximating_tail_values_and_high_order_moments}
@@ -157,13 +189,11 @@ Upper bounding $ (\tfrac{1}{s} - \tfrac{1}{s^3} + \cdots )$ by $ \tfrac{1}{z} $ 
 
 Mathematically it is very straight forward to arrive at a piecewise constant approximation as the simplest possible approximation to use, especially using equally spaced intervals in the domain $ [0, 1] $, where the approximation can readily include the singular endpoints 0 and 1. As the range of values will go from a continuum to a discrete set, we say the distribution has become \emph{quantised} and denote our approximation as $ Q $ where $ Q \approx \Phi^{-1} $, where for a uniform random variable $ U \sim \mathcal{U}(0, 1)$ we have $ Z \coloneqq \Phi^{-1}(U) $ and $ \tilde{Z} \coloneqq Q(U) $. An example of such an approximation, whose construction we will detail shortly, is shown in figure~\ref{fig:piecewise_constant_gaussian_approximation}, where the error is measured using the $ L^p $ norm $ \lVert f \rVert_p \coloneqq (\int_0^1 \abs{f(u)}^p \dd{u})^{1/p} $, where the convergence in this norm is demonstrated in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}.
 
-
-
 \begin{figure}[htb]
 \centering
 \subfigure[An example approximation using 8 intervals.\label{fig:piecewise_constant_gaussian_approximation}]{\includegraphics{piecewise_constant_gaussian_approximation}} \hfill 
 \subfigure[The $ L^p $ error and the bound from theorem~\ref{thm:piecewise_constant_approximation_error}.\label{fig:piecewise_constant_gaussian_approximation_error}]{\includegraphics{piecewise_constant_gaussian_approximation_error}}
-\caption{The piecewise constant approximation with equally spaced intervals, and its error in various norms.}
+\caption{The piecewise constant approximation $ \tilde{Z}_k^{L^1} $ from corollary~\ref{cor:piecewise_constant_constructions} with equally spaced intervals, and its error in various norms.}
 \label{fig:piecewise_constant_approximation}
 \end{figure}
 
@@ -172,7 +202,6 @@ Before presenting theorem~\ref{thm:piecewise_constant_approximation_error}, we c
 As we have already mentioned, the piecewise constant approximation is closely related to the resulting approximation produced by \citet{giles2019random_quadrature}, whose approximation arises from considering uniforms truncated to a finite number of bits of precision. Thus our main result from this section, theorem~\ref{thm:piecewise_constant_approximation_error}, closely resembles a related result by \citet[Theorem~1]{giles2019random_quadrature}. Thus, to put our extension into context, we paraphrase the similar result from \citet{giles2019random_quadrature}, which is that for a piecewise constant approximation using $ 2^q $ intervals, for some integer $ q \gg 1 $, the for constant values equal to each intervals midpoint they have $ \lVert Z - \tilde{Z}\rVert_2^2 = O(2^{-q}q^{-1}) $. Our result from theorem~\ref{thm:piecewise_constant_approximation_error} extends this to $ \lVert Z - \tilde{Z}\rVert_p^p = O(2^{-q} q^{-p/2}) $ for $ p \geq 2 $, and numerous other possible constant values other than the mid point. Our result from theorem~\ref{thm:piecewise_constant_approximation_error}, where we are able to increase the order of the error to arbitrarily high norms is interesting in its own right, as it shows that as the intervals become increasing small (corresponding to $ q \to \infty $), then the dominant term effecting the $ L^p $ error is the geometric decay $ O(2^{-2/p}) $, and thus the convergence exists but is slower in higher norms, with the polynomial $ O(q^{-1/2}) $ term being comparatively negligible (as we can see in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}). Additionally, in the related analysis which incorporates these approximate random variables into a multilevel Monte Carlo framework by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested}, their bounds on the variance of the multilevel Monte Carlo correction term (discussed more later) rely on the existence of the $ L^p $ error for $ p > 2 $. Hence, while this strengthening of the result may appear only slight, it is crucial for other application within multilevel Monte Carlo. 
 
 We are now in a position to present the main result concerning piecewise constant approximations, namely theorem~\ref{thm:piecewise_constant_approximation_error}. In this we will leave the interval values largely unspecified, and later demonstrate in corollary~\ref{cor} several choices for the mid-point fit within the scope of theorem~\ref{thm:piecewise_constant_approximation_error}.
-
 
 \begin{theorem}
 \label{thm:piecewise_constant_approximation_error}
@@ -266,9 +295,9 @@ The main result from this section will be theorem~\ref{thm:piecewise_linear_appr
 
 \begin{figure}[htb]
 \centering
-\subfigure[A piecewise linear approximation using 8 dyadic intervals.\label{fig:piecewise_linear_gaussian_approximation}]{\includegraphics{piecewise_linear_gaussian_approximation}} \hfill 
-\subfigure[The $ L^p $ error for $ p = 2 $ from the singular interval and the bounds from theorem~\ref{thm:piecewise_linear_approximation_error}.\label{fig:piecewise_linear_gaussian_approximation_error_singular_interval}]{\includegraphics{piecewise_linear_gaussian_approximation_error_singular_interval}}
-\caption{The piecewise linear approximation with geometric intervals, and its error in the singular interval.}
+\subfigure[A piecewise linear approximation using 8  intervals.\label{fig:piecewise_linear_gaussian_approximation}]{\includegraphics{piecewise_linear_gaussian_approximation}} \hfill 
+\subfigure[The $ L^2 $ error for various polynomial orders, with the number of intervals in $ (0, \tfrac{1}{2}) $ labeled.\label{fig:piecewise_linear_gaussian_approximation_error}]{\includegraphics{piecewise_linear_gaussian_approximation_error}}
+\caption{The piecewise linear approximation and its error from theorem~\ref{thm:piecewise_linear_approximation_error} with geometric intervals using $ r = \tfrac{1}{2} $.}
 \label{fig:piecewise_linear_approximation}
 \end{figure}
 
@@ -291,8 +320,6 @@ Considering the domain $ (0, \tfrac{1}{2}) $, we split the contribution into tho
 where the factors of 2 correct for us splitting the domain $ (0, 1) $ into $ (0, \tfrac{1}{2}) $. 
 
 Beginning with the non-singular intervals, we express the point-wise error using the Peano kernel theorem \citep{iserles2009first,powell1981approximation}, (which we will later bound). For notational simplicity, we denote the approximated functioned as $ f $, where $ f \equiv \Phi^{-1} $, and a given interval as $ [a,b] \equiv I_k  $. The $ L^2 $ optimal linear approximation is $ \alpha(f) + \beta(f) u $ for $ u \in [a,b] $ where $ \alpha $ and $ \beta $ are functionals. The point-wise error is $ f(u) - \alpha(f) - \beta(f)u $ is a linear mapping $ L $ acting on $ f $ where $ L(f)(u) \coloneqq  f(u) - \alpha(f) - \beta(f)u $. By construction $ L $ annihilates linear functions, so the Peano kernel is $ k(\xi; u) \coloneqq (u - \xi)^+ - \alpha((\cdot - \xi)^+) - \beta((\cdot - \xi)^+)u \equiv (u - \xi)^+ - \bar{\alpha}(\xi) - \bar{\beta}(\xi)u $ for $ \xi \in [a,b] $ where we define $ \bar{\alpha}(\xi) \coloneqq \alpha((\cdot - \xi)^+) $ and similarly for $ \bar{\beta}(\xi) $. The point-wise error is $ \varepsilon(u) \coloneqq L(f)(u) = \int_{a}^{b} k(\xi; u) f''(\xi) \dd{\xi} $.
-
-
 
 Determine the kernel's intercept and gradient, we use that they are $ L^2 $ optimal, and so the functional derivative of $ \int_a^b \varepsilon^2(u) \dd{u} $ with respect to $ \alpha $ and $ \beta $ are zero. Setting the two functional derivatives to zero gives the simultaneous equations
 \begin{equation*}
@@ -323,7 +350,6 @@ where for the first inequality we used that $ {\dv[2]{}{u}}\Phi^{-1} $ is maxima
 \leq 2.59^p \left(\dfrac{1 - r}{r}\right)^{2p}  \int_{0}^{\frac{1}{2}} \dd{u}
 = O((1-r)^{2p}).
 \end{equation*}
-
 
 We now consider the interval $ [0, b] \equiv I_K $ containing the singularity at 0, which have the intercept and gradient
 $ \alpha = \tfrac{1}{b} \int_{0}^{b} \Phi^{-1}(u) \dd{u} - \tfrac{b\beta}{2}  $
@@ -378,48 +404,152 @@ o(r^{K-1}),
 where for the second equality we used lemma~\ref{lemma:approximate_tail_values} in the limit $ r^{K-1} \to 0 $. \qedhere
 \end{proof}
 
-We can see then from theorem~\ref{thm:piecewise_linear_approximation_error} that the $ O((1 - r)^{2p}) $ comes from the central regions, and is reduced by taking $ r \to 1 $, and the $ o(r^{K-1}) $ term is from the final singular interval, and is reduced by taking $ r^{K-1} \to 0 $. Of these two, we can readily assess the tightness of the bound from the singular interval, which for $ p = 2 $ is shown in figure~\ref{fig:piecewise_linear_gaussian_approximation_error_singular_interval}, from which we can see our $ O $-bound is tight. (Other values of $ p $ give similar results to those in figure~\ref{fig:piecewise_linear_gaussian_approximation_error_singular_interval}, so for clarity we only show $ p = 2 $). The key point of interest with this result is that the error from the central regions and the singular region are decoupled. In order to decrease the overall error, it is not sufficient to only increase the number of intervals ($ K \to \infty $), which would only improve the error from the singular interval, but the decay rate must also be decreased ($ r \to 1 $). The independence and interplay of these two errors is important for balancing the fidelity between the central and edge regions.
+We can see then from theorem~\ref{thm:piecewise_linear_approximation_error} that the $ O((1 - r)^{2p}) $\todo{I think for an $ m $-th order polynomial this will change to $ O((1 - r)^{(m+1)p}) $?} comes from the central regions, and is reduced by taking $ r \to 1 $, and the $ o(r^{K-1}) $ term is from the final singular interval, and is reduced by taking $ r^{K-1} \to 0 $. The key point of interest with this result is that the error from the central regions and the singular region are decoupled. In order to decrease the overall error, it is not sufficient to only increase the number of intervals ($ K \to \infty $), which would only improve the error from the singular interval, but the decay rate must also be decreased ($ r \to 1 $). The independence and interplay of these two errors is important for balancing the fidelity between the central and edge regions.
 
+There are some natural follow on questions concerning the piecewise linear construction presented in theorem~\ref{thm:piecewise_linear_approximation_error}: can we make it continuous, can we use higher order polynomials, and how can we determine the polynomials optimal coefficients? The best starting point to answering these is to consider the possibility of using higher order polynomials, such as e.g.\ cubics, (recall that our primary aim is still speed and simplicity rather than machine precision fidelity). Again considering the arbitrary interval $ [a,b] $, suppose we are trying to approximate $ f $ by a $ m $-th order polynomial $ \tilde{f} $ where $ f(u) \approx \tilde{f}(u) = c_0 + c_1 u + c_2 u^2 + \cdots + c_m u^m $ with $ c_m \neq 0 $ for any $ u \in [a,b] $. Sticking with the $ L^2 $ optimal polynomial, we can minimise the $ L^2 $ error by equating the functional derivates to zero, thus obtaining the set of $ m + 1 $ linear simultaneous equations of the form $ A\bm{x} = \bm{b} $ where: $ A_{i,j} = \tfrac{b^{i+j+1} - a^{i+j+1}}{i+j+1} $, $ \bm{x}_i = c_i $, and $ \bm{b}_{i} = \int_{a}^{b} u^i f(u) \dd{u} $, with indices $ i,j \in \{0,1,2,\ldots,m\} $. Using this it is readily possible fit higher order polynomials, which is how we were able to generate figure~\ref{fig:piecewise_linear_gaussian_approximation_error}. Furthermore, we can trivially use our bound from theorem~\ref{thm:piecewise_linear_approximation_error} to bound higher order polynomials, and thus piecewise quadratic or cubic approximations are permissible in our framework. This then just leaves the open question about a forming a continuous piecewise linear approximation. Requiring that the approximation is continuous over the entire interval $ (0, 1) $ would turn our previously minimisation into a constrained minimisation problem, with an awkward set of constraints, where we can no longer trivially set the functional derivatives to zero.  Of course, while such a continuous approximation may be more aesthetically pleasing, it is of no practical consequence for the inverse transform method, and by definition will have a worse overall $ L^2 $ error than the discontinuous approximation from theorem~\ref{thm:piecewise_linear_approximation_error}. Thus we avoid and discourage imposing such a constraint. 
 
-There are three natural follow on questions concerning this piecewise linear construction presented in theorem~\ref{thm:piecewise_linear_approximation_error}: can we make it continuous, can we use higher order polynomials, and how can we determine the polynomials optimal coefficients?
-
-\todo{
-
-Why not make it continuous.?
-What about higher order (bound using linear bound)?
-How to find the coefficients?}
-
-
-
-
-
-
-
-\todo[inline=true, caption={Approx rv section}]{
-\begin{enumerate}
-\item Approximate Gaussian random variables
-\begin{enumerate}
-\item Approximate the inverse CDF
-\item The Gaussian distribution.
-\item Piecewise constant approximation
-\item Piecewise linear (polynomial?) approximation with dyadic intervals.
-\item The RMSE of the approximations. 
-\end{enumerate}
-\end{enumerate}}
+The error from the piecewise linear approximation for various polynomial orders and numbers of intervals is shown in figure~\ref{fig:piecewise_linear_gaussian_approximation_error}, (for the approximations figure~\ref{fig:piecewise_linear_approximation} we set the decay rate $ r = \tfrac{1}{2} $ in theorem~\ref{thm:piecewise_linear_approximation_error}). As we increase the number of intervals used, then for the piecewise linear function, the $ L^2 $ error plateaus to approximately $ 10^{-2} $ for 16 intervals, which is approximately equal to the error for the piecewise constant approximation using $ 10^3 $ intervals. Thus we can appreciate the vast increase in fidelity that the piecewise linear approximation naturally boasts over the piecewise constant approximation. Furthermore, this plateau demonstrates that the central regions are limiting the accuracy of the approximation. Inspecting the approximation using 16 intervals in $ (0, \tfrac{1}{2}) $, we see that as we increase the polynomial order from linear to cubic there is a considerable drop in the error approximately equal to a factor of $ 10^2 $, where the piecewise cubic approximation is achieving $ L^2 $ errors just shy of $ 10^{-4} $. However, we see that increasing the polynomial order any further does not lead to any significant reduction in the $ L^2 $ error, indicating that in this regime it is the error in the singular interval which is dominating the overall error. 
 
 \section{High performance implementations}
 \label{sec:high_performance_impementations}
+
+Our motivation for presenting the piecewise constant and linear approximations was to speed up the inverse transform method, where the approximations were inherently simple in their construction, with the suggestion that any implementation would likely be simple and thus likely performant. However, it is not obvious that the implementations from various software libraries, especially heavily optimised commercial libraries such and Intel's, should be slow. In the remainder of this section, we will mention how most libraries implement these routines, and why many are inherently ill-posed for modern vector hardware. Our two approximations capitalise on the features where most libraries stumble, avoiding division and conditional branching, which will be the key to their success. We give a brief overview of their implementations and showcase their superior speed across Intel and Arm hardware in both in C and Python. 
+
+\subsection{The shortcomings in standard library implementations}
+
+Several libraries providers, both freely open-source and commercial, offer implementations of the inverse Gaussian cumulative distribution function, where providers include Intel, NAG, Nvidia, MathWorks, Cephes, GNU, etc. The focus of these implementations is primarily ensuring near machine precision is achieved for all possible valid input values, and handling errors and edge cases appropriately. While some offer single precision implementations, most offer (or default to) double precision implementations, which are typically accurate to 16 significant figures. In order to meet these precisions, algorithms have become ever more improved over the years \citep{hastings1955approximations,evans1974algorithm70,beasley1985percentage,wichura1988algorithm,marsaglia1994rapid,giles2011approximating}, where the most widely used is by \citet{wichura1988algorithm}, which is used in: GNU's scientific library (GSL), the Cephes library (used by Python's SciPy package), and the NAG library (NAG uses a slight modification). 
+
+The \textit{de facto} for these implementations is to split the function into two regions: an easy central region, and a difficult tail region. Inside the central region a rational Pad\'{e} approximation is used, where one seventh order polynomial is divided by another. In the tail regions, the square root of the logarithm is computed, and then a similar rational approximation performed on the transformed variable. While these are very precise routines, they have several shortcomings with respect to performance.
+
+The first shortcoming is the division operation involved in computing the rational approximation. Division is considerably more expensive than addition or multiplication, and with a much higher latency \citep{wittmann2015short,fog2018instruction}. Thus, for the very highest performance, avoiding division is preferable, and thus our polynomial approximations. (The implementation by \citet{giles2011approximating} already capitalises on this). Similarly, taking the logarithm and square root are expensive, making the tail regions very expensive, and so are best avoided too. 
+
+The second short coming is that the routine branches, requesting a very expensive calculation for the occasional tail values, and a less expensive calculation for more frequent central values. Branching is achieved by using ``\texttt{if-else}'' conditions, but unfortunately, this often inhibits vectorisation, resulting in compilers being unable to issue single instruction multiple data (SIMD) operations \citep{vanderpas2017using}. Even if a vectorised SIMD implementation is produced, typically the results from both branches are computed, and the correct result selected by predication/masking. Thus, irrespective of the input, both the very expensive and less expensive calculation may be performed, resulting in the relatively infrequent tail values producing a disproportionately expensive overall calculation. This effect is common known as \emph{warp divergence} in GPU programs, and in our setting we will call this factor \emph{vector divergence}. It is important to highlight that the wider the vector and the smaller the data type, and thus the greater the amount of parallelisation by vectorisation, the worse the impact of vector divergence. Noting that half precision uses only 16 bits, both Intel's AVX-512 and Fujitsu's A64FX are 512 bits wide, and Arm's SVE can be up to 2048 bits, the degree of vector parallelisation can be vast, and the impact from conditional branching becomes evermore crippling as vector parallelisation increases. 
+
+In light of these two shortcomings, we will see our approximations can be implemented in a vectorisation friendly manner which avoids conditional branching, and are homogenous in their calculations. Furthermore, their constant and polynomial designs avoid division operations, and only require addition, multiplication, and integer bit manipulations, and thus result in extremely fast executables. We will see that our piecewise constant approximation will rely on the high speed of querying the cache. Furthermore, for the piecewise linear approximation using a decay rate $ r = \tfrac{1}{2} $ and 15 intervals, then in single precision all the coefficients can be held in 512 bit wide vector registers, bypassing the need to even query the cache, and thus are extremely fast provided the vector widths are sufficiently large. 
+
+\subsection{Implementing the piecewise constant approximation}
+
+The piecewise constant is easy to implement. Splitting the domain $ (0, 1) $ into the $ N $ intervals $ [\tfrac{m}{N}, \tfrac{m+1}{N}) $ zero indexed by $ m \in \{0,1,2,\ldots,N-1\}$, the values for each interval are easily computed \textit{a priori}, and stored in a lookup table. An example of how this looks in C is shown in code~\ref{code:piecewise_constant_approximation}, where we use OpenMP (\texttt{omp.h}) to signal to the compiler that the \texttt{for} loop is suitable for vectorisation. This relies on the typecasting to the integer, where any fractional bit is removed. The benefit to such an implementation is that on modern chips a copy of the lookup table can readily fit within either the L1 or L2 caches, where 1024 values stored in 64 bit double precision consume \SI{8}{\kilo\byte}. As an example, an Intel Xeon Gold 6140 CPU has L1 and L2 caches which ware \SI{32}{\kilo\byte} and \SI{2014}{\kilo\byte} respectively, and thus the lookup table can exploit the fast speeds of the L1 cache, which typically has latencies of 2--5 clock cycles. 
+
+\begin{lstfloat}[htb]
+\begin{lstlisting}[style=C, caption={C implementation of the piecewise constant approximation.}, label={code:piecewise_constant_approximation}]
+#define LOOKUP_TABLE_SIZE 1024
+const double lookup_table[LOOKUP_TABLE_SIZE] = {-3.3, -2.9, -2.8, ..., 2.8, 2.9, 3.3};
+
+void piecewise_constant_approximation(const unsigned int n_samples, 
+                                      const double * restrict input, 
+                                      double * restrict output) {
+    #pragma omp simd
+    for (unsigned int n = 0; n < n_samples; n++) 
+        output[n] = lookup_table[(unsigned int) (LOOKUP_TABLE_SIZE * input[n])];
+}
+\end{lstlisting}
+\end{lstfloat}
+
+\subsection{Implementing the piecewise linear approximation}
+
+The piecewise linear approximation is a bit more involved that the piecewise constant approximation. Not only do we have a polynomial to evaluate (albeit only linear), but the geometric and varying widths of the intervals, identifying which interval a given value corresponds to appears more involved. Once the appropriate interval's polynomials coefficients are found, evaluating the polynomial is trivially, where the linear polynomial can be evaluated using a single fused multiply and add (FMA) instruction. Higher order polynomials can be similarly computed (e.g.\ with Horner's rule). 
+
+The primary challenge is determining which interval a given value corresponds to based off of the construction from theorem~\ref{thm:piecewise_linear_approximation_error} for a given decay rate $ r $. As floating point numbers are stored in binary using their sign, exponent, and mantissa, the natural choice most amenable for computation is $ r = \tfrac{1}{2} $, which we call the \emph{dyadic} rate, producing the dyadic intervals shown in table~\ref{tab:dyadic_intervals}. Looking at table~\ref{tab:dyadic_intervals}, we notice that the intervals are only dense near the singularity at 0, but not near the singularity at 1. This is not problematic, as we said in theorem~\ref{thm:piecewise_linear_approximation_error} that the approximation is rotationally symmetric, and thus we can use the $ N $ intervals in $ (0, \tfrac{1}{2}) $, and if our input value is within $ (\tfrac{1}{2}, 1) $, it is straight forward to simply negate the value computed for the input reflected about $ \tfrac{1}{2} $ (equivalent to using the inverse complementary cumulative distribution function). 
 
 \begin{table}[htb]
 \centering
 \captionof{table}{Dyadic intervals and their corresponding array indices.}
 \label{tab:dyadic_intervals}
-\renewcommand{\arraystretch}{1.4}
+\renewcommand{\arraystretch}{1.4}  % This is only local to this one table.
 \begin{tabular}{c|ccccccc}
 Index & 0 & 1 & 2 & $ \cdots $ & $ n $ & $ \cdots $ & $ N $ \\ \hline
 Interval & $ [\tfrac{1}{2}, 1) $ & $ [\tfrac{1}{4}, \tfrac{1}{2}) $ & $ [\tfrac{1}{8}, \tfrac{1}{4}) $ & $ \cdots $ & $ [\tfrac{1}{2^{n+1}}, \tfrac{1}{2^n}) $ & $ \cdots $ & $ (0, \tfrac{1}{2^N}) $
 \end{tabular}
 \end{table}
+
+Such an implementation can handle any value in $ (0, \tfrac{1}{2}) \cup (\tfrac{1}{2}, 1) $, but unfortunately $ \tfrac{1}{2} $ is not included within this range. While a mathematician may say the individual value $ \tfrac{1}{2} $ has zero measure, from a computational perspective such a value is perfectly feasible input, and quite likely to appear in any software tests. Thus our implementation will correctly handle this value. The reader will notice that when we later reflect an input value $ x $ about $ \tfrac{1}{2} $ by using $ x \to 1 - x $, then the value $ \tfrac{1}{2} $ will not be in any of the intervals indexed between 1--$ N $ in table~\ref{tab:dyadic_intervals}, but remains in the interval indexed by 0. Thus in our later implementations, the arrays of coefficients will always hold as their first entry (index 0) zero values so $ \tfrac{1}{2} $ is correctly handled. We found during the development of the implementation, being able to correctly handle this value is of considerable practical importance, so so encourage practitioners to also correctly handle this value. 
+
+If we are using the dyadic decay rate, then the interval an input $ x $  belongs to is $ \lceil -{\log}_2(x) \rceil - 1 $. However, to compute this we needn't take any logarithms, which are expensive to compute. We can obtain the same result by reading off the exponent bits in the floating point representation, treating these as an integer, and then correcting for the exponent bias.  This only involves simple bit manipulations, and interpreting the bits in a floating point representation as an integer. In C this can either by achieved by a technique called type-punning, either by pointer-aliasing, using a \texttt{union}, or using specialised intrinsic functions. Of these, pointer aliasing technically breaks the strict aliasing rule in C (and C++) \citep[6.5.2.3]{iso2012c11} \citep[pages~163--164]{stallman2020gcc}. Similarly, type-punning with a \texttt{union} in C89 is implementation defined, whereas in C11 the bits are re-interpreted as desired. In our implementation we will leave this detail undefined and just use a macro to indicate this aliasing. 
+
+Overall then, the general algorithm we will use to implement the construction from theorem~\ref{thm:piecewise_linear_approximation_error} is given in algorithm~\ref{algo:piecewise_polynomial_approximation_using_dyadic_intervals}. Furthermore, a single precision C implementation is shown in code~\ref{code:piecewise_linear_approximation}, where we assume the single precision floats are stored in IEEE 32 bit floating point format \citep{ieee2008ieee}.
+
+\begin{algorithm}[h!tb]
+\DontPrintSemicolon
+\KwIn{Floating-point uniform random variable $ U \in [0, 1) $.}
+\KwOut{Floating-point approximate Gaussian random variable $ \tilde{Z} $.}
+Form predicate using $ U > \tfrac{1}{2} $.\;
+Reflect about $ \tfrac{1}{2} $ to obtain $ U \in [0, \tfrac{1}{2}] $.\;
+Alias $ U $ as an unsigned integer.\;
+Read the exponent bits using bitwise-AND.\;
+Right shift away the mantissa's bits.\;
+Obtain an array index by correcting for exponent bias.\;
+Cap the array index to avoid overflow.\;
+Read the polynomial coefficients.\;
+Re-interpret $ U $ as a float.\;
+Form the polynomial approximation $ \tilde{Z} $.\;
+Correct sign of approximation based on the predicate.\;
+\caption{Piecewise polynomial approximation using dyadic intervals.}
+\label{algo:piecewise_polynomial_approximation_using_dyadic_intervals}
+\end{algorithm}
+
+\begin{lstfloat}[h!tb]
+\begin{lstlisting}[style=C, caption={C implementation of the piecewise linear approximation.}, label={code:piecewise_linear_approximation}]
+typedef unsigned int uint32;  // Asuming floats are 32 bits. 
+typedef float float32;        // Asuming integers are 32 bits. 
+
+#define TABLE_SIZE 16
+#define N_MANTISSA_32 23            // For IEEE 754
+#define FLOAT32_EXPONENT_BIAS 127   // For IEEE 754
+#define FLOAT32_EXPONENT_BIAS_TABLE_OFFSET (FLOAT32_EXPONENT_BIAS - 1)
+#define TABLE_MAX_INDEX (TABLE_SIZE - 1) // Zero indexing.
+#define FLOAT32_AS_UINT32(x) (...)  // Type-punning is performed.
+
+const float32 poly_coef_0[TABLE_SIZE] = {0.0, -1.3, -1.6, ..., -4.0, -4.1, -4.5};
+const float32 poly_coef_1[TABLE_SIZE] = {0.0, 2.6, 3.7, ..., 2800.0, 5300.0, 21000.0};
+
+#pragma omp declare simd
+static inline float32 polynomial_approximation(const float32 u, const uint32 index) {
+    return poly_coef_0[index] + poly_coef_1[index] * u;
+}
+
+#pragma omp declare simd
+static inline uint32 get_table_index_from_float_format(const float32 u) {
+    uint32 index = FLOAT32_AS_UINT32(u) >> N_MANTISSA_32;      // Remove the mantissa.
+    index = FLOAT32_EXPONENT_BIAS_TABLE_OFFSET - index;        // Get the index.
+    return index > TABLE_MAX_INDEX ? TABLE_MAX_INDEX : index;  // Avoid overflow.
+}
+
+void piecewise_polynomial_approximation(const unsigned int n_samples,
+                                        const float32 * restrict input, 
+                                        float32 * restrict output) {
+    #pragma omp simd 
+    for (unsigned int i = 0; i < n_samples; i++) {
+        float32 u = input[i];
+        bool predicate = u < 0.5;
+        u = predicate ? u : 1.0 - u;
+        uint32 index = get_table_index_from_float_format(u);
+        float32 z = polynomial_approximation(u, index);
+        z = predicate ? z : -z;
+        output[i] = z;
+    }
+}
+\end{lstlisting}
+\end{lstfloat}
+
+
+\subsection{Performance of the implementations}
+
+\todo[inline=true, caption={high performance implemntations section}]{
+\begin{enumerate}
+\item How do the standard implementations work?
+\item Why are they slow or in need of improvement?
+\item Why will our approximations be faster (no conditional branching)?
+\item Why will be the piecewise constant be fast?
+\item How do I implement it?
+\item Why will be the piecewise linear be fast?
+\item How do I implement it. 
+\item So how fast did they run (in Python or C, and on different hardware)?
+\end{enumerate}
+}
+
+
+
 
 \section{Multilevel Monte Carlo}
 \label{sec:multilevel_monte_carlo}
