@@ -14,7 +14,23 @@ import numpy as np
 from scipy.stats import norm
 from scipy.integrate import quad as integrate
 from approximate_random_variables.approximate_gaussian_distribution import construct_piecewise_constant_approximation, construct_symmetric_piecewise_polynomial_approximation
-from mpmath import mp
+from mpmath import mp, mpf
+from timeit import default_timer as timer
+from functools import wraps
+
+
+def time_function(func):
+    """ A decorator to time a function. """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = timer()
+        results = func(*args, **kwargs)
+        elapsed_time = timer() - start_time
+        return results, elapsed_time
+
+    return wrapper
+
 
 mp.dps = 50
 
@@ -114,9 +130,9 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     y1 = x
     y2 = x * np.log(1.0 / (np.sqrt(2.0 * np.pi) * x)) ** (-p / 2.0)
     plt.clf()
-    plt.plot(2*x, y_integral, 'k-', label='__nolegend__')
-    plt.plot(2*x, y2 / [y2[0] / y_integral[0]], 'k-', dashes=(10, 10), label=r'$O(r^{K-1} {\log}^{-p/2}(r^{1-K}\sqrt{2/\pi}))$')
-    plt.plot(2*x, y1 / [y1[0] / y_integral[0]], 'k-', dashes=(3,3), label=r'$o(r^{K-1})$')
+    plt.plot(2 * x, y_integral, 'k-', label='__nolegend__')
+    plt.plot(2 * x, y2 / [y2[0] / y_integral[0]], 'k-', dashes=(10, 10), label=r'$O(r^{K-1} {\log}^{-p/2}(r^{1-K}\sqrt{2/\pi}))$')
+    plt.plot(2 * x, y1 / [y1[0] / y_integral[0]], 'k-', dashes=(3, 3), label=r'$o(r^{K-1})$')
     plt.xlabel(r'$r^{K-1}$')
     plt.ylabel(r'$\int_{I_K} \lvert \Phi^{-1}(u) - D(u)\rvert^p \dd{u}$')
     plt.xscale('log')
@@ -126,6 +142,7 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     plt.ylim(1e-8, 1e-1)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation_error_singular_interval.pdf', format='pdf', bbox_inches='tight', transparent=True)
+
 
 def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False):
     polynomial_orders = range(6)
@@ -148,3 +165,127 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     plt.xticks(polynomial_orders)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation_error.pdf', format='pdf', bbox_inches='tight', transparent=True)
+
+
+def produce_paths(dt, method=None, approx=None):
+    """
+    Perform path simulations of a geometric Brownian motion.
+    :param dt: Float. (Fraction of time).
+    :param method: Str.
+    :return: List. [x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx]
+    """
+    assert isinstance(dt, float) and np.isfinite(dt) and dt > 0 and (1.0 / dt).is_integer()
+    assert isinstance(method, str) and method in ['euler-maruyama', 'milstein']
+    assert approx is not None
+    # The parameters.
+
+    x_0 = 1.0
+    mu = 0.05
+    sigma = 0.2
+    T = 1.0
+
+    dt = dt * T
+    t_fine = dt
+    t_coarse = 2 * dt
+    sqrt_t_fine = t_fine ** 0.5
+    w_coarse_exact = 0.0
+    w_coarse_approx = 0.0
+
+    x_fine_exact = x_0
+    x_coarse_exact = x_0
+    x_fine_approx = x_0
+    x_coarse_approx = x_0
+    n_fine = int(1.0 / dt)
+
+    update_coarse = False
+
+    x_0, mu, sigma, T, dt, t_fine, t_coarse, sqrt_t_fine, w_coarse_exact, w_coarse_approx = [mpf(i) for i in [x_0, mu, sigma, T, dt, t_fine, t_coarse, sqrt_t_fine, w_coarse_exact, w_coarse_approx]]
+    fabs = mp.fabs
+
+    path_update = None
+    if method == 'euler-maruyama':
+        path_update = lambda x, w, t: x + mu * x * t + sigma * x * w
+    elif method == 'milstein':
+        path_update = lambda x, w, t: x + mu * x * t + sigma * x * w + 0.5 * sigma * sigma * (w * w - t)
+    assert path_update is not None
+
+    for n in range(n_fine):
+        u = np.random.uniform()
+        z_exact = norm.ppf(u)
+        z_approx = approx(u)
+        z_approx = z_approx if isinstance(z_approx, float) else z_approx[0]
+        w_fine_exact = sqrt_t_fine * z_exact
+        w_fine_approx = sqrt_t_fine * z_approx
+        w_coarse_exact += w_fine_exact
+        w_coarse_approx += w_fine_approx
+
+        x_fine_exact = path_update(x_fine_exact, w_fine_exact, t_fine)
+        x_fine_approx = path_update(x_fine_approx, w_fine_approx, t_fine)
+        if update_coarse:
+            x_coarse_exact = path_update(x_coarse_exact, w_coarse_exact, t_coarse)
+            x_coarse_approx = path_update(x_coarse_approx, w_coarse_approx, t_coarse)
+            w_coarse_exact *= 0.0
+            w_coarse_approx *= 0.0
+        update_coarse = not update_coarse  # We toggle to achieve pairwise summation.
+    assert not update_coarse  # This should have been the last thing we did.
+
+    return [x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx]
+
+
+def plot_variance_reduction(savefig=False):
+    deltas = [2.0 ** -i for i in range(1, 7)]
+    inverse_norm = norm.ppf
+    piecewise_constant = construct_piecewise_constant_approximation(inverse_norm, n_intervals=1024)
+    piecewise_linear = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=1)
+    piecewise_cubic = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=3)
+    approximations = {'constant': piecewise_constant, 'linear': piecewise_linear, 'cubic': piecewise_cubic}
+    markers = {'original': 'd', 'constant': 'o', 'linear': 'v', 'cubic': 's'}
+
+    results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in ['euler-maruyama', 'milstein']}  # Store the values of delta and the associated data.
+    time_per_level = 5.0
+    paths_min = 64
+    for method in results:
+        for approx_name, approx in approximations.items():
+            for dt in deltas:
+                _, elapsed_time_per_path = time_function(produce_paths)(dt, method, approx)
+                paths_required = int(time_per_level / elapsed_time_per_path)
+                if paths_required < paths_min:
+                    print("More time required for {} and {} with dt={}".format(method, approx_name, dt))
+                    break
+
+                originals, corrections = [[None for i in range(paths_required)] for j in range(2)]
+                for path in range(paths_required):
+                    x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx = produce_paths(dt, method, approx)
+                    originals[path] = x_fine_exact - x_coarse_exact
+                    corrections[path] = min((x_fine_exact - x_coarse_exact) - (x_fine_approx - x_coarse_approx), (x_fine_exact - x_fine_approx) - (x_coarse_exact - x_coarse_approx), sum([x_fine_exact, -x_coarse_exact, -x_fine_approx, x_coarse_approx]))  # might need revising for near machine precision.
+                originals, corrections = [[j ** 2 for j in i] for i in [originals, corrections]]
+                for name, values in [['original', originals], [approx_name, corrections]]:
+                    mean = np.mean(values)
+                    std = np.std(values) / (len(values) ** 0.5)
+                    results[method][name][dt] = [mean, std]
+
+    for method in results:
+        plt.clf()
+        for approx_name in results[method]:
+            x, y = zip(*results[method][approx_name].items())
+            y, y_std = list(zip(*y))
+            y_error = 1 * np.array(y_std)
+            plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[approx_name]))
+        plt.xscale('log', basex=2)
+        plt.yscale('log', basey=2)
+        plt.xlabel(r'Fine time increment $\delta^{\mathrm{f}}$')
+        plt.ylabel('Variance')
+        y_min_base_2 = 50
+        plt.ylim(2 ** -y_min_base_2, 2 ** -10)
+        plt.yticks([2 ** -i for i in range(10, y_min_base_2 + 1, 10)])
+        plt.xticks(deltas)
+        if savefig:
+            plt.savefig('variance_reduction_{}_scheme.pdf'.format(method.replace('-', '_')), format='pdf', bbox_inches='tight', transparent=True)
+
+for c, V in [[1.0 / 6.0, 2.0 ** -13], [1.0 / 7.0, 2 ** -14], [1.0 / 5.0, 2 ** -25]]:
+    C = 1.0 + c
+    efficiency = (1.0 + np.sqrt(V * C / c)) ** 2
+    speedup = c * efficiency
+    m = np.sqrt(speedup * (1.0)/(c))
+    M = np.sqrt(speedup * (V) / (C))
+    print(round(1.0/speedup, 1), round(100*1.0/efficiency, 1), round(m, 2), m/M)

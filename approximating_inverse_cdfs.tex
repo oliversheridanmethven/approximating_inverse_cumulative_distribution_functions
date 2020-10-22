@@ -1,6 +1,7 @@
 \documentclass[manuscript,review]{acmart}
 
-
+\let\Bbbk\undefined % Undefines some symbols for amssymb
+\usepackage{amssymb}
 \usepackage{mathtools} % remove this later. 
 \usepackage[boxed, vlined, linesnumbered, resetcount]{algorithm2e} 
 \usepackage{bm}
@@ -10,7 +11,6 @@
 \usepackage{subfigure}
 \usepackage[binary-units=true]{siunitx}
 \usepackage{todonotes}
-
 
 \newfloat{lstfloat}{htbp}{lop} % To put the listings in. 
 \renewcommand{\lstlistingname}{Code} % Rename them as codes. 
@@ -129,7 +129,7 @@ Having a framework capable of producing such various distributions will have sev
 
 The second benefit of our approach is that while the approximations are  specified mathematically, their implementations are left unspecified. This flexibility facilitates constructing approximations which can be tailored to a specific hardware or architecture. We will present two approximations, whose implementations can gain computational speed by transitioning the work load from primarily using the floating-point processing units to instead exploiting the cache hierarchy. Further to this, our approximations are designed with vector hardware in mind. Our approximations are non-branching, and thus suitable for implementation using single-instruction multiple data (SIMD) instructions, including Arm's new scalable vector extension (SVE) instruction set. Furthermore, for hardware with very large vectors, such as the 512-bit wide vectors on Intel's AVX-512 and Fujitsu's Arm-based A64FX (such as those in the new Fugaku supercomputer), we demonstrate implementations which although they are not vector length agnostic, they are unrivalled in their computational performance on the latest hardwares. Previous work using low-precision bit-wise approximations targetted at field-programmable gate arrays has previously motivated the related works by \citet{brugger2014mixed} and \citet{omland2015exploiting}.
 
-In this work, we will primarily focus our attention on the analysis and implementation of two approximations: a piecewise constant approximation using equally sized intervals, and a piecewise linear approximation using geometrically decaying intervals. The former is an extension of the work by \citet[Theorem~1]{giles2019random_quadrature} to higher moments, while the latter is a novel analysis, capable of both the highest speeds and fidelities. Although we will demonstrate how these are incorporated into a multilevel Monte Carlo framework, the subsequent analysis is performed by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} and omitted from this work. We will however showcase the savings a practitioner adopting our framework can expect to achieve from even a minimal incorporation of our proposals. 
+In this work, we will primarily focus our attention on the analysis and implementation of two approximations: a piecewise constant approximation using equally sized intervals, and a piecewise linear approximation using geometrically decaying intervals. The former is an extension of the work by \citet[theorem~1]{giles2019random_quadrature} to higher moments, while the latter is a novel analysis, capable of both the highest speeds and fidelities. Although we will demonstrate how these are incorporated into a multilevel Monte Carlo framework, the subsequent analysis is performed by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} and omitted from this work. We will however showcase the savings a practitioner adopting our framework can expect to achieve from even a minimal incorporation of our proposals. 
 
 Section~\ref{sec:approximate_gaussian_random_variables} introduces and analyses our two approximations, providing bounds on the error of the approximation. Section~\ref{sec:high_performance_impementations} then discusses the production of high performance implementations, the code for which is collected into a central repository and maintained by \citet{sheridan2020approximate_random,sheridan2020approximate_inverse}, and the code to reproduce these results is similarly collected together into a separate repository \citep{sheridan2020approximate_inverse}. Section~\ref{sec:multilevel_monte_carlo} introduces multilevel Monte Carlo as a natural setting for our approximations, and demonstrates the possible computational savings. Section~\ref{sec:parametrised_distributions} extends our approximations to the non-central $ \chi^2 $ distribution, representing a very expensive parametrised distribution which arises in simulations of the Cox-Ingersoll-Ross process. Lastly, section~\ref{sec:conclusions} presents the conclusions from this work. 
 
@@ -145,7 +145,7 @@ In this section, we present two approximation types: a piecewise constant, and a
 \subsection{Approximating tail values and high order moments}
 \label{sec:approximating_tail_values_and_high_order_moments}
 
-For the Gaussian distribution with probability density function $ \phi(z) \coloneqq \tfrac{1}{\sqrt{2\pi}} {\exp}(-\tfrac{1}{2}z^2) $, we will require approximations for tail values and their high order moments. These approximations will usually become more accurate for more extreme tail values, and so we use the notation by \citet{giles2019random_quadrature} that $ f(z) \approx g(z) $ to denote $ \lim_{z\to\infty} \tfrac{f(z)}{g(z)} = 1 $, and similarly $ f(z) \lessapprox g(z) $ to denote $ f(z) \leq g(z) $ and $ f(z) \approx g(z) $. Our key result will be lemmas~\ref{lemma:approximate_tail_values} and \ref{lemma:approximate_moments} which will bound the tail values and high order moments. Lemma~\ref{lemma:approximate_tail_values} is an extension on a similar result by \citet[Lemma~7]{giles2019random_quadrature}, extended to give enclosing bounds. Similarly lemma~\ref{lemma:approximate_moments} is partly an extension of another result by \citet[Lemma~9]{giles2019random_quadrature}, extended to arbitrarily high moments rather than just the second. As such, neither of these lemmas are particularly noteworthy in themselves and their proofs closely resemble those by \citet[Appendix~A]{giles2019random_quadrature}. Similarly our resulting error bounds for the piecewise constant approximation in section~\ref{sec:piecewise_constant_approximations_on_equal_intervals} will closely resemble a related result by \citet[Theorem~1]{giles2019random_quadrature}. However, our main result for the piecewise linear approximation in section~\ref{sec:piecewise_linear_approximations_on_geometric_intervals} will require these results, and thus we include them here primarily for completeness. 
+For the Gaussian distribution with probability density function $ \phi(z) \coloneqq \tfrac{1}{\sqrt{2\pi}} {\exp}(-\tfrac{1}{2}z^2) $, we will require approximations for tail values and their high order moments. These approximations will usually become more accurate for more extreme tail values, and so we use the notation by \citet{giles2019random_quadrature} that $ f(z) \approx g(z) $ to denote $ \lim_{z\to\infty} \tfrac{f(z)}{g(z)} = 1 $, and similarly $ f(z) \lessapprox g(z) $ to denote $ f(z) \leq g(z) $ and $ f(z) \approx g(z) $. Our key result will be lemmas~\ref{lemma:approximate_tail_values} and \ref{lemma:approximate_moments} which will bound the tail values and high order moments. Lemma~\ref{lemma:approximate_tail_values} is an extension on a similar result by \citet[lemma~7]{giles2019random_quadrature}, extended to give enclosing bounds. Similarly lemma~\ref{lemma:approximate_moments} is partly an extension of another result by \citet[lemma~9]{giles2019random_quadrature}, extended to arbitrarily high moments rather than just the second. As such, neither of these lemmas are particularly noteworthy in themselves and their proofs closely resemble those by \citet[appendix~A]{giles2019random_quadrature}. Similarly our resulting error bounds for the piecewise constant approximation in section~\ref{sec:piecewise_constant_approximations_on_equal_intervals} will closely resemble a related result by \citet[theorem~1]{giles2019random_quadrature}. However, our main result for the piecewise linear approximation in section~\ref{sec:piecewise_linear_approximations_on_geometric_intervals} will require these results, and thus we include them here primarily for completeness. 
 
 \begin{lemma}
 \label{lemma:approximate_tail_values}
@@ -199,7 +199,7 @@ Mathematically it is very straight forward to arrive at a piecewise constant app
 
 Before presenting theorem~\ref{thm:piecewise_constant_approximation_error}, we can briefly comment on the error we can observe from figure~\ref{fig:piecewise_constant_gaussian_approximation_error}. Specifically looking at the root mean squared error (RMSE), corresponding to the $ L^2 $ norm, we can see that increasing the number of intervals from 2 to $ 10^3 $ gives a drop of $ 10^2 $ in the RMSE. For our multilevel Monte Carlo applications later, having approximately 1000 intervals gives a very good fidelity, whereas the lower fidelity approximations with much higher errors, like the Rademacher random variables resembling the distribution with 2 intervals, has a much lower fidelity. Being able to achieve a reasonable fidelity from our approximation ensures that we achieve the largest portion of the possible temporal savings offered from our approximations. 
 
-As we have already mentioned, the piecewise constant approximation is closely related to the resulting approximation produced by \citet{giles2019random_quadrature}, whose approximation arises from considering uniforms truncated to a finite number of bits of precision. Thus our main result from this section, theorem~\ref{thm:piecewise_constant_approximation_error}, closely resembles a related result by \citet[Theorem~1]{giles2019random_quadrature}. Thus, to put our extension into context, we paraphrase the similar result from \citet{giles2019random_quadrature}, which is that for a piecewise constant approximation using $ 2^q $ intervals, for some integer $ q \gg 1 $, the for constant values equal to each intervals midpoint they have $ \lVert Z - \tilde{Z}\rVert_2^2 = O(2^{-q}q^{-1}) $. Our result from theorem~\ref{thm:piecewise_constant_approximation_error} extends this to $ \lVert Z - \tilde{Z}\rVert_p^p = O(2^{-q} q^{-p/2}) $ for $ p \geq 2 $, and numerous other possible constant values other than the mid point. Our result from theorem~\ref{thm:piecewise_constant_approximation_error}, where we are able to increase the order of the error to arbitrarily high norms is interesting in its own right, as it shows that as the intervals become increasing small (corresponding to $ q \to \infty $), then the dominant term effecting the $ L^p $ error is the geometric decay $ O(2^{-2/p}) $, and thus the convergence exists but is slower in higher norms, with the polynomial $ O(q^{-1/2}) $ term being comparatively negligible (as we can see in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}). Additionally, in the related analysis which incorporates these approximate random variables into a multilevel Monte Carlo framework by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested}, their bounds on the variance of the multilevel Monte Carlo correction term (discussed more later) rely on the existence of the $ L^p $ error for $ p > 2 $. Hence, while this strengthening of the result may appear only slight, it is crucial for other application within multilevel Monte Carlo. 
+As we have already mentioned, the piecewise constant approximation is closely related to the resulting approximation produced by \citet{giles2019random_quadrature}, whose approximation arises from considering uniforms truncated to a finite number of bits of precision. Thus our main result from this section, theorem~\ref{thm:piecewise_constant_approximation_error}, closely resembles a related result by \citet[theorem~1]{giles2019random_quadrature}. Thus, to put our extension into context, we paraphrase the similar result from \citet{giles2019random_quadrature}, which is that for a piecewise constant approximation using $ 2^q $ intervals, for some integer $ q \gg 1 $, the for constant values equal to each intervals midpoint they have $ \lVert Z - \tilde{Z}\rVert_2^2 = O(2^{-q}q^{-1}) $. Our result from theorem~\ref{thm:piecewise_constant_approximation_error} extends this to $ \lVert Z - \tilde{Z}\rVert_p^p = O(2^{-q} q^{-p/2}) $ for $ p \geq 2 $, and numerous other possible constant values other than the mid point. Our result from theorem~\ref{thm:piecewise_constant_approximation_error}, where we are able to increase the order of the error to arbitrarily high norms is interesting in its own right, as it shows that as the intervals become increasing small (corresponding to $ q \to \infty $), then the dominant term effecting the $ L^p $ error is the geometric decay $ O(2^{-2/p}) $, and thus the convergence exists but is slower in higher norms, with the polynomial $ O(q^{-1/2}) $ term being comparatively negligible (as we can see in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}). Additionally, in the related analysis which incorporates these approximate random variables into a multilevel Monte Carlo framework by \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested}, their bounds on the variance of the multilevel Monte Carlo correction term (discussed more later) rely on the existence of the $ L^p $ error for $ p > 2 $. Hence, while this strengthening of the result may appear only slight, it is crucial for other application within multilevel Monte Carlo. 
 
 We are now in a position to present the main result concerning piecewise constant approximations, namely theorem~\ref{thm:piecewise_constant_approximation_error}. In this we will leave the interval values largely unspecified, and later demonstrate in corollary~\ref{cor} several choices for the mid-point fit within the scope of theorem~\ref{thm:piecewise_constant_approximation_error}.
 
@@ -413,7 +413,7 @@ The error from the piecewise linear approximation for various polynomial orders 
 \section{High performance implementations}
 \label{sec:high_performance_impementations}
 
-Our motivation for presenting the piecewise constant and linear approximations was to speed up the inverse transform method, where the approximations were inherently simple in their construction, with the suggestion that any implementation would likely be simple and thus likely performant. However, it is not obvious that the implementations from various software libraries, especially heavily optimised commercial libraries such and Intel's, should be slow. In the remainder of this section, we will mention how most libraries implement these routines, and why many are inherently ill-posed for modern vector hardware. Our two approximations capitalise on the features where most libraries stumble, avoiding division and conditional branching, which will be the key to their success. We give a brief overview of their implementations and showcase their superior speed across Intel and Arm hardware in both in C and Python. 
+Our motivation for presenting the piecewise constant and linear approximations was to speed up the inverse transform method, where the approximations were inherently simple in their construction, with the suggestion that any implementation would likely be simple and thus likely performant. However, it is not obvious that the implementations from various software libraries, especially heavily optimised commercial libraries such and Intel's, should be slow. In the remainder of this section, we will mention how most libraries implement these routines, and why many are inherently ill-posed for modern vector hardware. Our two approximations capitalise on the features where most libraries stumble, avoiding division and conditional branching, which will be the key to their success. We give a brief overview of their implementations and showcase their superior speed across Intel and Arm hardware in both in C and Python. While we will briefly outline the implementations here in moderate detail, a more comprehensive suite of implementations and experiments, including Intel AVX-512 and Arm SVE specialisations, are hosted in a centralised repository by \citet{sheridan2020approximate_random}.
 
 \subsection{The shortcomings in standard library implementations}
 
@@ -423,7 +423,7 @@ The \textit{de facto} for these implementations is to split the function into tw
 
 The first shortcoming is the division operation involved in computing the rational approximation. Division is considerably more expensive than addition or multiplication, and with a much higher latency \citep{wittmann2015short,fog2018instruction}. Thus, for the very highest performance, avoiding division is preferable, and thus our polynomial approximations. (The implementation by \citet{giles2011approximating} already capitalises on this). Similarly, taking the logarithm and square root are expensive, making the tail regions very expensive, and so are best avoided too. 
 
-The second short coming is that the routine branches, requesting a very expensive calculation for the occasional tail values, and a less expensive calculation for more frequent central values. Branching is achieved by using ``\texttt{if-else}'' conditions, but unfortunately, this often inhibits vectorisation, resulting in compilers being unable to issue single instruction multiple data (SIMD) operations \citep{vanderpas2017using}. Even if a vectorised SIMD implementation is produced, typically the results from both branches are computed, and the correct result selected by predication/masking. Thus, irrespective of the input, both the very expensive and less expensive calculation may be performed, resulting in the relatively infrequent tail values producing a disproportionately expensive overall calculation. This effect is common known as \emph{warp divergence} in GPU programs, and in our setting we will call this factor \emph{vector divergence}. It is important to highlight that the wider the vector and the smaller the data type, and thus the greater the amount of parallelisation by vectorisation, the worse the impact of vector divergence. Noting that half precision uses only 16 bits, both Intel's AVX-512 and Fujitsu's A64FX are 512 bits wide, and Arm's SVE can be up to 2048 bits, the degree of vector parallelisation can be vast, and the impact from conditional branching becomes evermore crippling as vector parallelisation increases. 
+The second short coming is that the routine branches, requesting a very expensive calculation for the occasional tail values, and a less expensive calculation for more frequent central values. Branching is achieved by using ``\texttt{if-else}'' conditions, but unfortunately, this often inhibits vectorisation, resulting in compilers being unable to issue single instruction multiple data (SIMD) operations \citep{vanderpas2017using}. Even if a vectorised SIMD implementation is produced, typically the results from both branches are computed, and the correct result selected by predication/masking. Thus, irrespective of the input, both the very expensive and less expensive calculation may be performed, resulting in the relatively infrequent tail values producing a disproportionately expensive overall calculation. This effect is common known as \emph{warp divergence} in GPU programs, and in our setting we will call this factor \emph{vector divergence}. It is important to highlight that the wider the vector and the smaller the data type, and thus the greater the amount of parallelisation by vectorisation, the worse the impact of vector divergence. Noting that half precision uses only 16 bits, both Intel's AVX-512 and Fujitsu's A64FX are 512 bits wide, and Arm's SVE can be up to 2048 bits \citep{petrogalli2016sneak_peak,stephens2017arm}, the degree of vector parallelisation can be vast, and the impact from conditional branching becomes evermore crippling as vector parallelisation increases. 
 
 In light of these two shortcomings, we will see our approximations can be implemented in a vectorisation friendly manner which avoids conditional branching, and are homogenous in their calculations. Furthermore, their constant and polynomial designs avoid division operations, and only require addition, multiplication, and integer bit manipulations, and thus result in extremely fast executables. We will see that our piecewise constant approximation will rely on the high speed of querying the cache. Furthermore, for the piecewise linear approximation using a decay rate $ r = \tfrac{1}{2} $ and 15 intervals, then in single precision all the coefficients can be held in 512 bit wide vector registers, bypassing the need to even query the cache, and thus are extremely fast provided the vector widths are sufficiently large. 
 
@@ -454,7 +454,7 @@ The primary challenge is determining which interval a given value corresponds to
 
 \begin{table}[htb]
 \centering
-\captionof{table}{Dyadic intervals and their corresponding array indices.}
+\caption{Dyadic intervals and their corresponding array indices.}
 \label{tab:dyadic_intervals}
 \renewcommand{\arraystretch}{1.4}  % This is only local to this one table.
 \begin{tabular}{c|ccccccc}
@@ -466,8 +466,6 @@ Interval & $ [\tfrac{1}{2}, 1) $ & $ [\tfrac{1}{4}, \tfrac{1}{2}) $ & $ [\tfrac{
 Such an implementation can handle any value in $ (0, \tfrac{1}{2}) \cup (\tfrac{1}{2}, 1) $, but unfortunately $ \tfrac{1}{2} $ is not included within this range. While a mathematician may say the individual value $ \tfrac{1}{2} $ has zero measure, from a computational perspective such a value is perfectly feasible input, and quite likely to appear in any software tests. Thus our implementation will correctly handle this value. The reader will notice that when we later reflect an input value $ x $ about $ \tfrac{1}{2} $ by using $ x \to 1 - x $, then the value $ \tfrac{1}{2} $ will not be in any of the intervals indexed between 1--$ N $ in table~\ref{tab:dyadic_intervals}, but remains in the interval indexed by 0. Thus in our later implementations, the arrays of coefficients will always hold as their first entry (index 0) zero values so $ \tfrac{1}{2} $ is correctly handled. We found during the development of the implementation, being able to correctly handle this value is of considerable practical importance, so so encourage practitioners to also correctly handle this value. 
 
 If we are using the dyadic decay rate, then the interval an input $ x $  belongs to is $ \lceil -{\log}_2(x) \rceil - 1 $. However, to compute this we needn't take any logarithms, which are expensive to compute. We can obtain the same result by reading off the exponent bits in the floating point representation, treating these as an integer, and then correcting for the exponent bias.  This only involves simple bit manipulations, and interpreting the bits in a floating point representation as an integer. In C this can either by achieved by a technique called type-punning, either by pointer-aliasing, using a \texttt{union}, or using specialised intrinsic functions. Of these, pointer aliasing technically breaks the strict aliasing rule in C (and C++) \citep[6.5.2.3]{iso2012c11} \citep[pages~163--164]{stallman2020gcc}. Similarly, type-punning with a \texttt{union} in C89 is implementation defined, whereas in C11 the bits are re-interpreted as desired. In our implementation we will leave this detail undefined and just use a macro to indicate this aliasing. 
-
-Overall then, the general algorithm we will use to implement the construction from theorem~\ref{thm:piecewise_linear_approximation_error} is given in algorithm~\ref{algo:piecewise_polynomial_approximation_using_dyadic_intervals}. Furthermore, a single precision C implementation is shown in code~\ref{code:piecewise_linear_approximation}, where we assume the single precision floats are stored in IEEE 32 bit floating point format \citep{ieee2008ieee}.
 
 \begin{algorithm}[h!tb]
 \DontPrintSemicolon
@@ -488,17 +486,19 @@ Correct sign of approximation based on the predicate.\;
 \label{algo:piecewise_polynomial_approximation_using_dyadic_intervals}
 \end{algorithm}
 
+Overall then, the general construction from theorem~\ref{thm:piecewise_linear_approximation_error} is given in algorithm~\ref{algo:piecewise_polynomial_approximation_using_dyadic_intervals}. Furthermore, a single precision C implementation is shown in code~\ref{code:piecewise_linear_approximation}, where we assume the single precision floats are stored in IEEE 32 bit floating point format \citep{ieee2008ieee}. 
+
 \begin{lstfloat}[h!tb]
 \begin{lstlisting}[style=C, caption={C implementation of the piecewise linear approximation.}, label={code:piecewise_linear_approximation}]
-typedef unsigned int uint32;  // Asuming floats are 32 bits. 
-typedef float float32;        // Asuming integers are 32 bits. 
+typedef unsigned int uint32;  // Assuming 32 bit floats. 
+typedef float float32;        // Assuming 32 bit integers. 
 
 #define TABLE_SIZE 16
 #define N_MANTISSA_32 23            // For IEEE 754
 #define FLOAT32_EXPONENT_BIAS 127   // For IEEE 754
 #define FLOAT32_EXPONENT_BIAS_TABLE_OFFSET (FLOAT32_EXPONENT_BIAS - 1)
 #define TABLE_MAX_INDEX (TABLE_SIZE - 1) // Zero indexing.
-#define FLOAT32_AS_UINT32(x) (...)  // Type-punning is performed.
+#define FLOAT32_AS_UINT32(x) (...)       // Type-punning.
 
 const float32 poly_coef_0[TABLE_SIZE] = {0.0, -1.3, -1.6, ..., -4.0, -4.1, -4.5};
 const float32 poly_coef_1[TABLE_SIZE] = {0.0, 2.6, 3.7, ..., 2800.0, 5300.0, 21000.0};
@@ -532,27 +532,128 @@ void piecewise_polynomial_approximation(const unsigned int n_samples,
 \end{lstlisting}
 \end{lstfloat}
 
+The reason why we decide to implement the approximation in single precision using coefficient arrays of 16 entries is because this requires 512 bits ($ 16 \times 32 $ bits) to store all the possible values for a given monomial's coefficient. The significance of 512 bits can be understated, as it is the width of an AVX-512 and A64FX vector register. Thus, instead of querying the cache to retrieve the coefficients, they can be held in vector registers, bypassing the cache entirely, and achieving extremely fast speeds. Recognising the coefficients can be stored in a single coalesced vector register is currently largely beyond most compilers' capabilities using only OpenMP directives and compiler flags alone. However, in the repository by \citet{sheridan2020approximate_random}, specialised implementations using Intel vector intrinsics and Arm inline assembly achieve this, obtain the ultimate in performance. 
 
 \subsection{Performance of the implementations}
 
-\todo[inline=true, caption={high performance implemntations section}]{
-\begin{enumerate}
-\item How do the standard implementations work?
-\item Why are they slow or in need of improvement?
-\item Why will our approximations be faster (no conditional branching)?
-\item Why will be the piecewise constant be fast?
-\item How do I implement it?
-\item Why will be the piecewise linear be fast?
-\item How do I implement it. 
-\item So how fast did they run (in Python or C, and on different hardware)?
-\end{enumerate}
-}
+Both the piecewise constant and linear approximation implementations that we  presented in codes~\ref{code:piecewise_constant_approximation} and \ref{code:piecewise_linear_approximation} are non branching, vector capable, and use only basic arithmetic and bit wise operations, and thus we anticipate their performance should be exceptionally good. Indeed, their performance, along with several other implementations are shown in table~\ref{tab:implementation_times}, with experiments performed on an Intel Xeon Gold (Skylake) CPU and an Arm based Cavium ThunderX2 \citep{sheridan2020approximate_random}.\todo{Perhaps Simon McIntosh smith has some new hardware where we can test out the piecewise polynomials using OpenMO and assembly?}
 
+\begin{table}[htb]
+\caption{Performance of various $ \Phi^{-1} $ implementations and approximations.}
+\label{tab:implementation_times}
+\begin{tabular}{lccccc}
+Description & Implementation & Hardware & Compiler & Precision & Time (clock cycles)\\ 
+\hline
+Cephes  \citep{moshier1992cephes} & --- &  Intel & \texttt{icc} & Double & $ 60 \pm 1 $ \\
+GNU GSL & --- &  Intel & \texttt{icc} & Double & $ 52 \pm 10 $ \\
+ASA241  \citep{wichura1988algorithm,burkardt2020software} & --- &  Intel & \texttt{icc} & Single & $ 47 \pm 1 $ \\
+\citet{giles2011approximating} & --- & Intel & \texttt{icc} & Single & $ 46 \pm 2 $ \\
+Intel (HA) & Intel MKL VSL &  Intel & \texttt{icc} & Double &  $ 9 \pm 0.5 $ \\
+Intel (LA)   &Intel MKL VSL &  Intel & \texttt{icc} & Double &   $ 7 \pm 0.5 $ \\
+Intel (HA) & Intel MKL VSL &  Intel & \texttt{icc} & Single &  $ 3.4 \pm 0.1 $ \\
+Intel (LA)   &Intel MKL VSL &  Intel & \texttt{icc} & Single &   $ 2.6 \pm 0.1 $ \\
+Piecewise constant  & OpenMP & Arm & \texttt{armclang} & Double & $ 4.0 \pm 0.5 $ \\
+Piecewise constant  & OpenMP & Intel & \texttt{icc} & Double & $ 1.5 \pm 0.3 $ \\
+Piecewise cubic  & OpenMP &   Intel & \texttt{icc} & Single &   $ 0.9 \pm 0.1 $  \\
+Piecewise cubic    & Intel intrinsics  &   Intel & \texttt{icc} & Single &  $ 0.7 \pm 0.1 $ \\
+Piecewise linear& Intel intrinsics  &   Intel & \texttt{icc} & Single &   $ 0.5  \pm 0.1 $ \\
+Read and write & --- & Intel & $ \texttt{icc} $ & Single & $ 0.4 \pm 0.1 $ 
+\end{tabular}
+\end{table}
 
-
+Looking at the results from table~\ref{tab:implementation_times}, of all of these, we can see that the piecewise linear approximation implemented using Intel vector intrinsics achieves the very fastest speeds, closely approaching the maximum speed of a simple read and write procedure. Unsurprisingly, the freely available implementations from Cephes and GSL are not competitive with the commercial offerings from Intel. Nonetheless, even in single precision, our approximations, on Intel hardware, consistently beat the performance achieved from the Intel high accuracy (HA) or low accuracy (LA) offerings. Comparing the high accuracy Intel offering and the piecewise linear implementation, there stands to be a speed up by a factor of seven by switching to our approximation. These results vindicate our efforts, and that our simple approximations offer considerable speed improvements. It is also needless to say, that compared to the freely available open-source offerings, the savings become vast. 
 
 \section{Multilevel Monte Carlo}
 \label{sec:multilevel_monte_carlo}
+
+One of the core uses of our high speed approximate random variables is in Monte Carlo applications. Frequently, the Monte Carlo method is used to estimate expectations of the form $ \mathbb{E}(P) $ of functionals $ P $ which act on solutions $ X $ of stochastic differential equations of the form $ \dd{X_t} = a(t, X_t) \dd{t} + b(t, X_t)\dd{W_t} $ for given drift and diffusion processes $ a $ and $ b $. The underlying stochastic process $ X_t $ is itself approximated by some $ \hat{X} $ using an appropriate numerical method such as the Euler-Maruyama or Milstein schemes \citep{asmussen2007stochastic,kloeden1999numerical,lord2014introduction}. Approximations such as the Euler-Maruyama and Milstein schemes simulate the stochastic process from time $ t = 0 $ to $ t = T $ over $ N $ time steps of size $ \Delta t = \delta = \tfrac{T}{N} $, where the incremental update at the $ n $-th iteration requires a Gaussian random variable $ Z_n $ to simulate the underlying Wiener process $ W_t $, where $ \Delta W_n = \sqrt{\delta}Z_n $. Such types of Monte Carlo simulations are wide spread, with the most famous situation being to price financial options. 
+
+Approximate random variables come into this picture by substituting the exact random variable samples in the approximation scheme with approximate ones. This facilitates running faster simulations, at the detriment of introducing some error. However, using the multilevel Monte Carlo method \citep{giles2008multilevel}, this error can be compensated for with negligible cost. Thus, the speed improvements offered by switching from exact to approximate random variables can be largely recovered, the original accuracy can be maintained. A detailed inspection of the error introduced from incorporating approximate Gaussian random variables into the Euler-Maruyama scheme and the associated multilevel Monte Carlo analysis is presented by \citet{giles2020approximate}. As such, we will only briefly review the key points of the setup, and detail the resultant computational savings that can be expected from using approximate random variables in a multilevel Monte Carlo setting. 
+
+For the Euler-Maruyama scheme, the unmodified version using exact Gaussian random variables $ Z $ produced an approximation $ \hat{X} $, whereas the modified scheme using approximate random variables $ \tilde{Z} $ produces an approximation $ \tilde{X} $, where the two schemes are respectively
+\begin{equation*}
+\hat{X}_{n+1} = \hat{X}_n + a(t_n, \hat{X}_n) \delta + b(t_n, \hat{X}_n)\sqrt{\delta} Z_n
+\qquad \text{and} \qquad 
+\tilde{X}_{n+1} = \tilde{X}_n + a(t_n, \tilde{X}_n) \delta + b(t_n, \tilde{X}_n)\sqrt{\delta} \tilde{Z}_n,
+\end{equation*}
+where $ t_n \coloneqq n \delta $. The regular multilevel Monte Carlo construction would vary the discretisation between two levels, producing \emph{fine} and \emph{coarse} simulations. The functional $ P $ would act on each path simulation, producing the fine and coarse approximation of the function $ P^{\mathrm{f}} $ and $ P^{\mathrm{c}} $ respectively. If the path simulation uses the exact random variables we denote these as $ \hat{P}^{\mathrm{f}} $ and $ \hat{P}^{\mathrm{c}} $, and alternatively if it uses approximate random variables as $ \tilde{P}^{\mathrm{f}} $ and $ \tilde{P}^{\mathrm{c}} $. In general there may be multiple fine and coarse levels, so we use $ l $ to index these, where increasing values of $ l $ correspond to fine path simulations. Thus we also introduce the notation for a given $ l $ that $ \hat{P}_l \equiv \hat{P}^{\mathrm{f}} $ and $ \hat{P}_{l-1} \equiv \hat{P}^{\mathrm{c}} $, and similarly $ \tilde{P}_l \equiv \tilde{P}^{\mathrm{f}} $ and $ \tilde{P}_{l-1} \equiv \tilde{P}^{\mathrm{c}} $. If we have levels $ l \in \{0, 1, 2, \ldots, L\} $ and use the convention $ \hat{P}_{-1} \coloneqq \tilde{P}_{-1} \coloneqq 0 $, then \citet{giles2020approximate} suggest the nested multilevel Monte Carlo
+\begin{equation*}
+E(P) 
+\approx
+E(\hat{P}_L) 
+= 
+\sum_{l = 0}^{L} E(\hat{P}_l - \hat{P}_{l-1}) 
+= 
+\sum_{l = 0}^{L} E(\tilde{P}_l - \tilde{P}_{l-1}) +  E(\hat{P}_l - \hat{P}_{l-1} - \tilde{P}_l + \tilde{P}_{l-1}),
+\end{equation*}
+where the first approximation is regular Monte Carlo procedure \citep{glasserman2013monte}, the first equality is the usual multilevel Monte Carlo decomposition \citep{giles2008multilevel}, and the final equality is the nested multilevel Monte Carlo framework \citep{giles2020approximate,sheridan2020nested}.
+\citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} show that the two way differences in the regular and nested multilevel Monte Carlo settings behave identically, and the main result of their analysis is determining the behaviour of the final four way difference's variance, finding transitional behaviour between differentiable and non-differentiable Lipschitz functions \citep[lemmas~4.10 and 4.11]{giles2020approximate} \citep[corollaries~6.2.6.2 and 6.2.6.3]{sheridan2020nested}. 
+
+
+\subsection{Expected time savings}
+
+Introducing approximate random variables within the nested multilevel Monte Carlo framework offers considerable time savings, which we are able to estimate. Introducing the regular multilevel estimator $ \hat{\theta} $ and the nested multilevel estimator $ \tilde{\theta} $ where
+\begin{equation*}
+\hat{\theta}  \coloneqq \sum_{l=0}^{L} \dfrac{1}{\hat{m}_l} \sum^{\hat{m}_l} \hat{P}_l - \hat{P}_{l-1}
+\qquad \text{and} \qquad
+\tilde{\theta} \coloneqq \sum_{l=0}^L \dfrac{1}{\tilde{m}_l} \sum^{\tilde{m}_l} \tilde{P}_l - \tilde{P}_{l-1} + \dfrac{1}{\tilde{M}_l} \sum^{\tilde{M}_l} \hat{P}_l - \hat{P}_{l-1} - \tilde{P}_l + \tilde{P}_{l-1},
+\end{equation*}
+then $ \hat{m}_l $, $ \tilde{m}_l $, and $ \tilde{M}_l $ paths generated, each with a computational time cost of $ \hat{c}_l $, $ \tilde{c}_l $, and $ \tilde{C}_l $, and variance $ \hat{v}_l $, $ \tilde{v}_l $, and $ \tilde{V}_l $ respectively. 
+
+Each of these estimators will have an error due to the finite number of paths used and the approximation scheme used. The error arising from these two factors is commonly referred to as the variance-bias trade off, where the mean squared error (MSE) of an estimator $ \theta \in \{\hat{\theta}, \tilde{\theta}\} $ is given by $ \text{MSE}(\theta) = \mathbb{V}(\theta) + \text{Bias}^2(\theta)$ \citep[page~16]{glasserman2013monte}. Setting the desired MSE to $ \varepsilon^2 $ and choosing the maximum simulation fidelity such that we just satisfy $ \text{Bias}^2(\theta) \leq \tfrac{\varepsilon^2}{2} $, then we can derive an expression for the total computational time $ T $. Forcing $ T $ to be minimal is achieved by performing a constrained minimisation with an objective function $ \mathscr{F} $. Considering the estimator $ \hat{\theta} $, the corresponding objective function is $ \hat{\mathscr{F}} \coloneqq \sum_{l=0}^{L} \hat{m}_l \hat{c}_l + \mu (\sum_{l=0}^{L} \tfrac{\hat{v}_l}{\hat{m}_l} - \tfrac{\varepsilon^2}{2}) $, where $ \mu $ is a Lagrange multiplier enforcing the constraint $ \mathbb{V}(\hat{\theta}) = \tfrac{\varepsilon^2}{2} $. Treating the number of paths as a continuous variable this is readily minimised to give
+\begin{equation*}
+\hat{T} = 2\varepsilon^{-2}\left(\sum_{l=0}^L \sqrt{\hat{v}_l \hat{c}_l}\right)^2 
+\qquad \text{and} \qquad 
+\tilde{T} = 2\varepsilon^{-2} \left(\sum_{l=0}^L \sqrt{\tilde{v}_l \tilde{c}_l} + \sqrt{\tilde{V}_l \tilde{C}_l}\right)^2,
+\end{equation*}
+where the minimal number of paths required given by
+\begin{equation*}
+\hat{m}_l = \varepsilon^{-1} \sqrt{\dfrac{2\hat{T}\hat{v}_l}{\hat{c}_l}},
+\qquad 
+\tilde{m}_l  = \varepsilon^{-1} \sqrt{\dfrac{2\tilde{T} \tilde{v}_l}{\tilde{c}_l}}, 
+\qquad 
+\text{and}
+\qquad 
+\tilde{M}_l  = \varepsilon^{-1} \sqrt{\dfrac{2\tilde{T} \tilde{V}_l}{\tilde{C}_l}},
+\end{equation*}
+and hence an overall saving of
+\begin{equation*}
+\tilde{T} 
+\approx 2\varepsilon^{-2} \left(\sum_{l=0}^L \sqrt{\hat{v}_l \hat{c}_l} \left( \sqrt{\dfrac{\tilde{v}_l\tilde{c}_l}{\hat{v}_l\hat{c}_l}} + \sqrt{\dfrac{\tilde{V}_l \tilde{C}_l}{\hat{v}_l \hat{c}_l}}\right)\right)^2 
+\leq \hat{T} \max_{l \leq L} \left\{ \dfrac{\tilde{v}_l\tilde{c}_l}{\hat{v}_l\hat{c}_l} \left(1 + \sqrt{\dfrac{\tilde{V}_l \tilde{C}_l}{\tilde{v}_l \tilde{c}_l}}\right)^2\right\}.
+\end{equation*}
+For modest fidelity approximations, we will see that $ \tilde{v}_l \approx \hat{v}_l $, in which case the term $ \tfrac{\tilde{v}_l\tilde{c}_l}{\hat{v}_l\hat{c}_l} \approx \tfrac{\tilde{c}_l}{\hat{c}_l}$ measures the potential time savings, and the term $ (1 + (\tilde{V}_l \tilde{C}_l / \tilde{v}_l \tilde{c}_l)^{1/2})^2 $ assesses the efficiency of realising these savings. We can directly see a balance needs to be achieved. The approximations should be sufficiently fast so that there is the potential for large and appreciable savings. However, the approximations need to be a sufficiently high fidelity such that the variance of the expensive four way difference is sufficiently lower than the variance of the cheaper two way difference.
+
+Although we have usable estimates for the costs of each estimator based on the results from table~\ref{tab:implementation_times}, the variance will depend on the stochastic process being simulated, the simulation method being used, and the approximation employed. To make our estimate more concrete and quantify possible variance reductions, let us consider a geometric Brownian motion where $ a(t, X_t) \coloneqq \mu X_t $ and $ b(t, X_t) \coloneqq \sigma X_t $ for two strictly positive constants $ \mu $ and $ \sigma $. In our simulations we will take $ \mu = 0.05 $, $ \sigma = 0.2 $, $ X_0 = 1 $, and $ T = 1 $ \citep[6.1]{giles2008multilevel}. Additionally, we will form the coarse level's Weiner increments by pair-wise summing the fine level's (which uses the fine time increment $ \delta^{\mathrm{f}} $). Importantly, the uniform random variable samples producing the exact Gaussian random variables will be the same as those used for producing the approximate Gaussian random variables, ensuring a tight coupling. Thus for some approximation $ \tilde{\Phi}^{-1} \approx \Phi^{-1} $, such as those from section~\ref{sec:approximate_gaussian_random_variables}, for a single uniform sample $ U_n \sim \mathcal{U}(0, 1) $ then $ Z_n \coloneqq \Phi^{-1}(U_n) $ and $ \tilde{Z}_n \coloneqq \tilde{\Phi}^{-1}(U_n) $, where the $ U_n $ is the same for both of these.
+
+The variance for the various multilevel terms for different time increments for the Euler-Maruyama and Milstein schemes are shown in figure~\ref{fig:variance_reduction} for various approximations. We consider the underlying process itself, corresponding to the functional $ P(X) = X $. The piecewise constant approximation uses 1024 intervals, which from figure~\ref{fig:piecewise_constant_gaussian_approximation_error} has a RMSE of approximately $ 10^{-2} $. The piecewise linear approximation uses 15 dyadic intervals (16 coefficients stored to correctly handle $ \tfrac{1}{2} $), which from figure~\ref{fig:piecewise_linear_gaussian_approximation_error} has a similar RMSE of approximately $ 10^{-2} $. The piecewise cubic approximation uses the same number of intervals, which from figure~\ref{fig:piecewise_linear_gaussian_approximation_error} has a RMSE of approximately $ 10^{-4} $.
+
+\begin{figure}[htb]
+\centering
+\subfigure[The Euler-Maruyama scheme.\label{fig:variance_reduction_euler_maruyama_scheme}]{\includegraphics{variance_reduction_euler_maruyama_scheme}} \hfill 
+\subfigure[The Milstein scheme.\label{fig:variance_reduction_milstein_scheme}]{\includegraphics{variance_reduction_milstein_scheme}}
+\caption{The variances from using the Euler-Maruyama and Milstein schemes for a geometric Brownian motion. The ($ \blacklozenge $)-marker is the two way difference $ \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} $, and the remaining markers (\raisebox{-0.1em}{\huge$ \bullet$}, {\large $ \blacktriangledown $}, $ \blacksquare $) are the four way difference $ \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} - \tilde{P}^{\mathrm{f}} + \tilde{P}^{\mathrm{c}} $ for the various approximations. (\raisebox{-0.1em}{\huge$ \bullet$}) Piecewise constant. ({\large $ \blacktriangledown $}) Piecewise linear. ($ \blacksquare $) Piecewise cubic.}
+\label{fig:variance_reduction}
+\end{figure}
+
+We can see from figure~\ref{fig:variance_reduction} that the two way differences exhibit the usual strong convergence order $ \tfrac{1}{2} $ and 1 of the Euler-Maruyama and Milstein schemes, as expected \citep{kloeden1999numerical}. Furthermore, as the functional is differentiable and Lipschitz continuous \citep{giles2020approximate,sheridan2020nested}, this strong convergence rate is preserved for the four way differences. \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} derive this result for the Euler-Maruyama scheme, but that it is also observed for the Milstein scheme remains open to analysis. Aside from this, the key point to note from figure~\ref{fig:variance_reduction} is the substantial drop in the variance between the two way and four way variances. This drop in the variance is large for the piecewise constant and linear approximations, and huge for the piecewise cubic approximation. 
+
+Estimating the best cost savings seen compared to Intel (HA) from table~\ref{tab:implementation_times}, the variance reductions from figure~\ref{fig:variance_reduction_euler_maruyama_scheme}, and using the simplifications $ \tilde{C}_l \approx \hat{c}_l + \tilde{c}_l $ and $ \tilde{v}_l \approx  \hat{v}_l $, then the estimated speed ups and their efficiencies are shown in table~\ref{tab:savings}. We can see from this that the piecewise linear approximation would give the largest savings, although the savings from the piecewise constant and cubic approximations are quite similar. Notice that while the piecewise cubic is achieving near perfect efficiency, its cost savings are not substantial to beat the marginally less efficient piecewise linear approximation which offers the larger potential savings. For all the approximations we can that four way difference simulations are required very infrequently. 
+
+\begin{table}[htb]
+\caption{The cost savings, variance reductions, and possible speed ups from the various approximations.}
+\label{tab:savings}
+\renewcommand{\arraystretch}{1.4}  % This is only local to this one table.
+\begin{tabular}{lcccccc}
+Approximation  & Cost & Variance & Speed up & Efficiency (\%) & $ \tfrac{\tilde{m}_l}{\hat{m}_l} $ & $ \tfrac{\tilde{m}_l}{\tilde{M}_l} $ \\[0.3em]
+\hline
+Piecewise constant & $ \tilde{c}_l \approx \tfrac{1}{6}\hat{c}_l $ & $ \tilde{V}_l \approx 2^{-13}\hat{v}_l $ & 5.7 & 94.4 & 1.03 & 240 \\
+Piecewise linear  & $ \tilde{c}_l \approx \tfrac{1}{7}\hat{c}_l $& $ \tilde{V}_l \approx 2^{-14}\hat{v}_l $& 6.7 & 95.7 & 1.02 & 360 \\
+Piecewise cubic  & $ \tilde{c}_l \approx \tfrac{1}{5}\hat{c}_l $& $ \tilde{V}_l \approx 2^{-25}\hat{v}_l $& 5.0 & 99.9 & 1.00 & 14000\\ 
+\end{tabular}
+\end{table}
+
+These cost savings are idealised in respect that we have attributed the cost entirely to the generation of the random numbers. While this is quite a common assumption, the validity of this assumption will diminish the faster the approximations become, as the basic cost of the other arithmetic operations becomes significant. Thus, while a practitioner should have their ambitions set to achieve these savings, they should set more modest expectations.
 
 \section{Parametrised distributions}
 \label{sec:parametrised_distributions}
