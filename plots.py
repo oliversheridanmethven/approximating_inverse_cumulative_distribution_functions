@@ -11,12 +11,15 @@ Description:
 import plotting_configuration
 import matplotlib.pylab as plt
 import numpy as np
-from scipy.stats import norm
+import pandas as pd
+from scipy.stats import norm, ncx2
 from scipy.integrate import quad as integrate
 from approximate_random_variables.approximate_gaussian_distribution import construct_piecewise_constant_approximation, construct_symmetric_piecewise_polynomial_approximation
+from approximate_random_variables.approximate_non_central_chi_squared import construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation
 from mpmath import mp, mpf
 from timeit import default_timer as timer
 from functools import wraps
+from progressbar import progressbar
 
 
 def time_function(func):
@@ -167,7 +170,7 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
         plt.savefig('piecewise_linear_gaussian_approximation_error.pdf', format='pdf', bbox_inches='tight', transparent=True)
 
 
-def produce_paths(dt, method=None, approx=None):
+def produce_geometric_brownian_motion_paths(dt, method=None, approx=None):
     """
     Perform path simulations of a geometric Brownian motion.
     :param dt: Float. (Fraction of time).
@@ -203,7 +206,7 @@ def produce_paths(dt, method=None, approx=None):
     fabs = mp.fabs
 
     path_update = None
-    if method == 'euler-maruyama':
+    if method == 'euler_maruyama':
         path_update = lambda x, w, t: x + mu * x * t + sigma * x * w
     elif method == 'milstein':
         path_update = lambda x, w, t: x + mu * x * t + sigma * x * w + 0.5 * sigma * sigma * (w * w - t)
@@ -241,13 +244,13 @@ def plot_variance_reduction(savefig=False):
     approximations = {'constant': piecewise_constant, 'linear': piecewise_linear, 'cubic': piecewise_cubic}
     markers = {'original': 'd', 'constant': 'o', 'linear': 'v', 'cubic': 's'}
 
-    results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in ['euler-maruyama', 'milstein']}  # Store the values of delta and the associated data.
+    results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in ['euler_maruyama', 'milstein']}  # Store the values of delta and the associated data.
     time_per_level = 5.0
     paths_min = 64
     for method in results:
         for approx_name, approx in approximations.items():
             for dt in deltas:
-                _, elapsed_time_per_path = time_function(produce_paths)(dt, method, approx)
+                _, elapsed_time_per_path = time_function(produce_geometric_brownian_motion_paths)(dt, method, approx)
                 paths_required = int(time_per_level / elapsed_time_per_path)
                 if paths_required < paths_min:
                     print("More time required for {} and {} with dt={}".format(method, approx_name, dt))
@@ -255,7 +258,7 @@ def plot_variance_reduction(savefig=False):
 
                 originals, corrections = [[None for i in range(paths_required)] for j in range(2)]
                 for path in range(paths_required):
-                    x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx = produce_paths(dt, method, approx)
+                    x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx = produce_geometric_brownian_motion_paths(dt, method, approx)
                     originals[path] = x_fine_exact - x_coarse_exact
                     corrections[path] = min((x_fine_exact - x_coarse_exact) - (x_fine_approx - x_coarse_approx), (x_fine_exact - x_fine_approx) - (x_coarse_exact - x_coarse_approx), sum([x_fine_exact, -x_coarse_exact, -x_fine_approx, x_coarse_approx]))  # might need revising for near machine precision.
                 originals, corrections = [[j ** 2 for j in i] for i in [originals, corrections]]
@@ -280,12 +283,133 @@ def plot_variance_reduction(savefig=False):
         plt.yticks([2 ** -i for i in range(10, y_min_base_2 + 1, 10)])
         plt.xticks(deltas)
         if savefig:
-            plt.savefig('variance_reduction_{}_scheme.pdf'.format(method.replace('-', '_')), format='pdf', bbox_inches='tight', transparent=True)
+            plt.savefig('variance_reduction_{}_scheme.pdf'.format(method), format='pdf', bbox_inches='tight', transparent=True)
 
-for c, V in [[1.0 / 6.0, 2.0 ** -13], [1.0 / 7.0, 2 ** -14], [1.0 / 5.0, 2 ** -25]]:
-    C = 1.0 + c
-    efficiency = (1.0 + np.sqrt(V * C / c)) ** 2
-    speedup = c * efficiency
-    m = np.sqrt(speedup * (1.0)/(c))
-    M = np.sqrt(speedup * (V) / (C))
-    print(round(1.0/speedup, 1), round(100*1.0/efficiency, 1), round(m, 2), m/M)
+
+def rmse_of_non_central_chi_squared_polynomial_approximations():
+    lambdas = [1, 5, 10, 50, 100, 200]
+    nus = [1, 5, 10, 50, 100]
+    poly_orders = [1, 3, 5]
+    n_intervals = 16
+    results = {poly_order: {nu: {} for nu in nus} for poly_order in poly_orders}
+    for poly_order in poly_orders:
+        for nu in nus:
+            ncx2_approx = construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof=nu, n_intervals=n_intervals + 1, polynomial_order=poly_order)
+            discontinuities = sorted([0.5 ** (i + 2) for i in range(n_intervals)] + [0.5] + [1.0 - 0.5 ** (i + 2) for i in range(n_intervals)])
+            for l in lambdas:
+                rmse = integrate(lambda u: (ncx2.ppf(u, df=nu, nc=l) - ncx2_approx(u, non_centrality=l)) ** 2, 0, 1, points=discontinuities, limit=50 + 10 * len(discontinuities))[0] ** 0.5
+                results[poly_order][nu][l] = rmse
+
+    for poly_order, result in results.items():
+        df = pd.DataFrame(result)
+        df.index = df.index.rename('lambda')
+        df.columns = df.columns.rename('nu')
+        print(poly_order, df.min().min(), df.max().max())
+        print(round(df, 3))
+        print('\n')
+        print(round(df, 3).apply(lambda x: ' & '.join([str(i) for i in list(x)]) + r' \\', axis=1))
+        print('\n' * 3)
+
+
+def produce_cox_ingersoll_ross_paths(dt, approximations=None, **kwargs):
+    assert isinstance(dt, float) and np.isfinite(dt) and dt > 0 and (1.0 / dt).is_integer()
+    assert approximations is not None
+    # The parameters.
+    params = kwargs
+    kappa, theta, sigma = params['kappa'], params['theta'], params['sigma']
+    T = 1.0
+    x_0 = 1.0
+    dt = dt * T
+    sqrt_t = dt ** 0.5
+    c1 = 4.0 * kappa / (sigma ** 2 * (1.0 - np.exp(-kappa * dt)))
+    c2 = c1 * np.exp(-kappa * dt)
+    df = 4.0 * kappa * theta / (sigma ** 2)
+
+    euler_maruyama_update = lambda x, w, t: x + kappa * (theta - x) * t + sigma * np.sqrt(np.fabs(x)) * w
+    exact_update = lambda u, x: ncx2.ppf(u, df=df, nc=x * c2) / c1
+    approximate_update = lambda u, x, approx: approx(u, non_centrality=x * c2)[0] / c1
+
+    x_exact = x_0
+    x_euler_maruyama = x_0
+    x_approximations = [x_0] * len(approximations)
+
+    n_increments = int(1.0 / dt)
+
+    for n in range(n_increments):
+        u = np.random.uniform()
+        z = norm.ppf(u)
+        dw = sqrt_t * z
+        x_euler_maruyama = euler_maruyama_update(x_euler_maruyama, dw, dt)
+        x_exact = exact_update(u, x_exact)
+        x_approximations = [approximate_update(u, x_approximate, approx) for approx, x_approximate in zip(approximations, x_approximations)]
+
+    return [x_euler_maruyama, x_exact, *x_approximations]
+
+
+def plot_variance_reduction_cir_process(savefig=False):
+    deltas = [0.5 ** i for i in range(8)]
+    poly_orders = {'linear': 1, 'cubic': 3}
+    poly_markers = (i for i in ['s', 'd'])
+    results = {k: {} for k in ['exact', 'euler_maruyama'] + list(poly_orders.keys())}
+    markers = {**{'exact': 'o', 'euler_maruyama': 'v'}, **{k: next(poly_markers) for k in poly_orders}}
+    params = {'kappa': 0.5, 'theta': 1.0, 'sigma': 1.0}
+    nu = 4.0 * params['kappa'] * params['theta'] / (params['sigma'] ** 2)
+    approximations = [construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof=nu, polynomial_order=poly_order) for poly_order in [1, 3]]
+    time_per_level = 5.0
+    paths_min = 64
+    for dt in progressbar(deltas):
+        _, elapsed_time_per_path = time_function(produce_cox_ingersoll_ross_paths)(dt, approximations, **params)
+        paths_required = int(time_per_level / elapsed_time_per_path)
+        if paths_required < paths_min:
+            print("More time required for dt={}".format(dt))
+            break
+        exacts, euler_maruyamas, linears, cubics = [[None for i in range(paths_required)] for j in range(4)]
+        for path in range(paths_required):
+            x_euler_maruyama, x_exact, x_linear, x_cubic = produce_cox_ingersoll_ross_paths(dt, approximations, **params)
+            exacts[path] = x_exact
+            euler_maruyamas[path] = x_exact - x_euler_maruyama
+            linears[path] = x_exact - x_linear
+            cubics[path] = x_exact - x_cubic
+        exacts, euler_maruyamas, linears, cubics = [[j ** 2 for j in i] for i in [exacts, euler_maruyamas, linears, cubics]]
+        for name, values in {'exact': exacts, 'euler_maruyama': euler_maruyamas, 'linear': linears, 'cubic': cubics}.items():
+            mean = np.mean(values)
+            std = np.std(values) / (len(values) ** 0.5)
+            results[name][dt] = [mean, std]
+
+    plt.clf()
+    for name in results:
+        x, y = zip(*results[name].items())
+        y, y_std = list(zip(*y))
+        y_error = 1 * np.array(y_std)
+        plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[name]))
+    plt.xscale('log', basex=2)
+    plt.yscale('log', basey=2)
+    plt.xticks(x)
+    plt.ylim(2 ** -25, 2 ** 2)
+    plt.yticks([2 ** -i for i in range(0, 30, 5)])
+    plt.xlabel(r'Time increment $\delta$')
+    plt.ylabel('Variance')
+    if savefig:
+        plt.savefig('variance_reduction_cir_process.pdf', format='pdf', bbox_inches='tight', transparent=True)
+
+
+def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
+    """ Plots a polynomial approximation to the non-central chi-squared. """
+    dof = 1.0
+    ncx2_approx = construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof, n_intervals=4 + 1)
+    u = np.linspace(0.0, 1.0, 100000)[:-1]  # Excluding the end points.
+    u_approx = np.linspace(0.0, 1.0, 1000)[:-1]
+    non_centralities = [1.0, 10.0, 20.0]
+    plt.clf()
+    for non_centrality in non_centralities:
+        plt.plot(u, ncx2.ppf(u, df=dof, nc=non_centrality), 'k--')
+        plt.plot(u_approx, ncx2_approx(u_approx, non_centrality=non_centrality), 'k,')
+    plt.plot([], [],  'k--', label=r'$C^{-1}_{\nu}(x;\lambda)$')
+    plt.plot([], [], 'k-', label=r'$\tilde{C}^{-1}_{\nu}(x;\lambda)$')
+    plt.ylim(0, 50)
+    plt.yticks([i for i in range(0, 51, 10)])
+    plt.xticks([0, 1])
+    plt.xlabel(r'$x$')
+    plt.legend(frameon=False)
+    if save_figure:
+        plt.savefig('non_central_chi_squared_linear_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
