@@ -58,14 +58,75 @@
 For random variables produced through the inverse transform method, approximate random variables are introduced, which are produced by approximations to a distribution's inverse cumulative distribution function. These approximations are designed to to be computationally inexpensive, and much cheaper than exact library functions, and thus highly suitable for use in Monte Carlo simulations. Two approximations are presented for the Gaussian distribution: a piecewise constant on equally spaced intervals, and a piecewise linear approximation using geometrically decaying interval dense at the distributions tails. The convergence of the approximation is demonstrated, and the computational savings are demonstrated for Python and C implementations. Implementations tailor Intel and Arm hardware are inspected, alongside hardware agnostic implementations. The savings are incorporated into a multilevel Monte Carlo framework with the Euler-Maruyama scheme to exploit the computation savings without losing accuracy. These ideas are empirically extended to the Milstein scheme, and the Cox-Ingersoll-Ross process' non central $ \chi^2 $ distribution. 
 \end{abstract}
 
+% cf. https://dl.acm.org/ccs#
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10002950.10003714.10003715</concept_id>
+       <concept_desc>Mathematics of computing~Numerical analysis</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10002950.10003705.10011686</concept_id>
+       <concept_desc>Mathematics of computing~Mathematical software performance</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10002950.10003705.10003708</concept_id>
+       <concept_desc>Mathematics of computing~Statistical software</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10002950.10003714.10003736.10003737</concept_id>
+       <concept_desc>Mathematics of computing~Approximation</concept_desc>
+       <concept_significance>100</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10002950.10003741.10003746</concept_id>
+       <concept_desc>Mathematics of computing~Continuous functions</concept_desc>
+       <concept_significance>100</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010147.10010169.10010170.10010173</concept_id>
+       <concept_desc>Computing methodologies~Vector / streaming algorithms</concept_desc>
+       <concept_significance>100</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010147.10010341.10010342.10010345</concept_id>
+       <concept_desc>Computing methodologies~Uncertainty quantification</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010147.10010341.10010349.10010345</concept_id>
+       <concept_desc>Computing methodologies~Uncertainty quantification</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010147.10010341.10010349.10010362</concept_id>
+       <concept_desc>Computing methodologies~Massively parallel and high-performance simulations</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+ </ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Mathematics of computing~Numerical analysis}
+\ccsdesc[300]{Mathematics of computing~Mathematical software performance}
+\ccsdesc[500]{Mathematics of computing~Statistical software}
+\ccsdesc[100]{Mathematics of computing~Approximation}
+\ccsdesc[100]{Mathematics of computing~Continuous functions}
+\ccsdesc[100]{Computing methodologies~Vector / streaming algorithms}
+\ccsdesc[300]{Computing methodologies~Uncertainty quantification}
+\ccsdesc[300]{Computing methodologies~Uncertainty quantification}
+\ccsdesc[300]{Computing methodologies~Massively parallel and high-performance simulations}
+
 \maketitle
 
 \section{Introduction}
 \label{sec:introduction}
 
-There is a wide range of computational tasks which centre on using random numbers, including: encryption, animation rendering \citep{lee2017vectorized}, and financial simulations \citep{glasserman2013monte}, to name a few. A frequent bottleneck to these applications is the generation of random numbers, whether these are cryptographically secure random numbers for encryption, or random numbers from a specific statistical distribution such as in Monte Carlo simulations (including Markov chain Monte Carlo \citep{hoang2013complexity,scheichl2017quasi}).  While computers have many excellent and fast implementations of random number generators for the uniform distribution, sampling random variables from a generic distribution it is often computationally very expensive. For certain distributions there are some specific transformations, such as the Box-Muller scheme \citep{box1958note} for the Gaussian distribution. 
+There is a wide range of computational tasks which centre on using random numbers, including: encryption, animation rendering \citep{lee2017vectorized}, and financial simulations \citep{glasserman2013monte}, to name a few. A frequent bottleneck to these applications is the generation of random numbers, whether these are cryptographically secure random numbers for encryption, or random numbers from a specific statistical distribution such as in Monte Carlo simulations.  While computers have many excellent and fast implementations of random number generators for the uniform distribution, sampling random variables from a generic distribution it is often computationally very expensive. (For certain distributions there are some specific transformations, such as the Box-Muller scheme \citep{box1958note} for the Gaussian distribution). 
 
-In this work we consider random variables produced using the inverse transform method \citep{glasserman2013monte}. The inverse transform method enables sampling from any distribution, and thus is very widely applicable. Additionally, it is crucial for quasi-Monte Carlo simulations \citep{giles2009multilevel_qmc,lecuyer2016randomized}, where it is important that no samples are rejected and the low-discrepancy property of the random numbers is preserved \citep{tezuka1995uniform}, and and their use in financial simulations is significant \citep{joy1996quasi,xu2015high}. Furthermore, we will demonstrate how the inverse transform method is particularly well suited to analysis. Lastly, it naturally provides a coupling mechanism for multilevel Monte Carlo applications for a range of stochastic processes, statistical distributions, and numerical schemes. 
+In this work we consider random variables produced using the inverse transform method \citep{glasserman2013monte}, which enables sampling from any distribution, and thus is very widely applicable. Additionally, it is crucial for quasi-Monte Carlo simulations \citep{giles2009multilevel_qmc,lecuyer2016randomized}, where it is important that no samples are rejected and the low-discrepancy property of the random numbers is preserved \citep{tezuka1995uniform}, and and their use in financial simulations is significant \citep{joy1996quasi,xu2015high}. Furthermore, we will demonstrate how the inverse transform method is particularly well suited to analysis. Lastly, it naturally provides a coupling mechanism for multilevel Monte Carlo applications for a range of stochastic processes, statistical distributions, and numerical schemes. 
 
 Our analysis focuses on producing random variables from the Gaussian distribution (a.k.a.\ the Normal distribution), and the motivations for this are threefold. Firstly, the distribution is a good representative for several classes of continuous distributions, and due to the central limit theorem is often the limiting case of several distributions. Secondly, the distribution is analytically tractable, and we will find the analysis will often admit some exact results, and is otherwise often amenable to various approximations. Lastly, the distribution is ubiquitous in both academic analysis and scientific computation, with its position cemented within It\^{o} calculus and financial simulations. 
 
@@ -150,6 +211,7 @@ Mathematically it is very straight forward to arrive at a piecewise constant app
 
 \caption{The piecewise constant approximation $ \tilde{Z}_k^{L^1} $ from corollary~\ref{cor:piecewise_constant_constructions} with equally spaced intervals, and its error in various norms.}
 \label{fig:piecewise_constant_approximation}
+\Description[The piecewise constant approximation is of a reasonable fidelity and its error decreases with more intervals.]{The piecewise constant approximation with 8 intervals fits with a modest fidelity the exact inverse Gaussian cumulative distribution function. We consider the error in various norms, which each show the error decreases as the number of intervals in increased, and this decrease is well described by our analytic bound.}
 \end{figure}
 
 Before presenting theorem~\ref{thm:piecewise_constant_approximation_error}, we can briefly comment on the error we can observe from figure~\ref{fig:piecewise_constant_gaussian_approximation_error}. Specifically looking at the root mean squared error (RMSE), corresponding to the $ L^2 $ norm, we can see that increasing the number of intervals from 2 to $ 10^3 $ gives a drop of $ 10^2 $ in the RMSE. For our multilevel Monte Carlo applications later, having approximately 1000 intervals gives a very good fidelity, whereas the lower fidelity approximations with much higher errors, like the Rademacher random variables resembling the distribution with 2 intervals, has a much lower fidelity. Being able to achieve a reasonable fidelity from our approximation ensures that we achieve the largest portion of the possible temporal savings offered from our approximations. 
@@ -256,6 +318,7 @@ The main result from this section will be theorem~\ref{thm:piecewise_linear_appr
 
 \caption{The piecewise linear approximation and its error from theorem~\ref{thm:piecewise_linear_approximation_error} with geometric intervals using $ r = \tfrac{1}{2} $.}
 \label{fig:piecewise_linear_approximation}
+\Description[The piecewise linear approximation is of a good fidelity and its error decreases with more intervals and higher polynomial orders.]{The piecewise linear approximation with 8 intervals fits with a high fidelity the exact inverse Gaussian cumulative distribution function. We consider the root mean square error, which decreases as the number of intervals or polynomial order is increased.}
 \end{figure}
 
 \begin{theorem}
@@ -608,6 +671,8 @@ The variance for the various multilevel terms for different time increments for 
 
 \caption{The variances from using the Euler-Maruyama and Milstein schemes for a geometric Brownian motion for the functional $ P(X) = X $. The ($ \blacklozenge $)-marker is the two way difference $ \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} $, and the remaining markers (\raisebox{-0.1em}{\huge$ \bullet$}, {\large $ \blacktriangledown $}, $ \blacksquare $) are the four way difference $ \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} - \tilde{P}^{\mathrm{f}} + \tilde{P}^{\mathrm{c}} $ for the various approximations. (\raisebox{-0.1em}{\huge$ \bullet$}) Piecewise constant. ({\large $ \blacktriangledown $}) Piecewise linear. ($ \blacksquare $) Piecewise cubic.}
 \label{fig:variance_reduction}
+
+\Description[The multilevel variance of the Euler-Maruyama and Milstein schemes.]{The variance of the underlying process and the multilevel corrections decreases with finer discretisation with the anticipated strong convergence orders. The piecewise constant and linear functions have a consistently smaller variance than the underlying process, typically being about 5 orders of magnitude less, and the piecewise cubic a further 5 less.}
 \end{figure}
 
 We can see from figure~\ref{fig:variance_reduction} that the two way differences exhibit the usual strong convergence order $ \tfrac{1}{2} $ and 1 of the Euler-Maruyama and Milstein schemes, as expected \citep{kloeden1999numerical}. Furthermore, as the functional is differentiable and Lipschitz continuous \citep{giles2020approximate,sheridan2020nested}, this strong convergence rate is preserved for the four way differences. \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} derive this result for the Euler-Maruyama scheme, but that it is also observed for the Milstein scheme remains open to analysis. Aside from this, the key point to note from figure~\ref{fig:variance_reduction} is the substantial drop in the variance between the two way and four way variances. This drop in the variance is large for the piecewise constant and linear approximations, and huge for the piecewise cubic approximation. 
@@ -706,6 +771,8 @@ $ \tilde{C}^{-1}_{\nu}(\cdot;\lambda) = \lambda + \nu + 2 \sqrt{\lambda + \nu} \
 \subfigure[The variance of the terms from simulating the CIR process. The (\raisebox{-0.1em}{\huge$ \bullet$})-marker is the underlying CIR process, and the markers ({\large $ \blacktriangledown $}, $ \blacksquare $, $ \blacklozenge $) indicate the variances of possible two way multilevel corrections. ({\large $ \blacktriangledown $}) Euler-Maruyama. ($ \blacksquare $) Piecewise linear. ($ \blacklozenge $) Piecewise cubic.\label{fig:cir_process_variance_reduction}]{\includegraphics{variance_reduction_cir_process}}\hfill 
 \caption{The non central $ \chi^2 $ distribution from the CIR process, and the variance of path simulations and possible multilevel corrections.}
 \label{fig:cir_process}
+
+\Description[Piecewise linear approximation to the non central chi-squared distribution, and the multilevel variances.]{The piecewise linear approximation to the non central chi-squared distribution with 8 intervals achieved a very good fidelity for a range of non centrality parameter values. The variance of the underlying process is a constant which is independent of the discretisation, and so are the variances of the multilevel corrections for piecewise linear and cubic approximations. The variance of a multilevel Euler-Maruyama correction decreases with a strong order of convergence of 0.5. Both approximations have much lower variances than the Euler-Maruyama approximation, with the linear have a variance reduction by approximately 5 orders of, and the piecewise cubic a further 3.}
 \end{figure}
 
 There are only two difficulties with constructing such an approximation. The first is that the distribution is no longer rotationally symmetry, which is easily remedied by constructing two approximations for the domains $ (0, \tfrac{1}{2}] $ and $ (\tfrac{1}{2}, 1) $. The second difficulty dealing with the parametrisation. Noting that $ y \in (0, 1) $ will be associated with the non centrality parameter, we construct several approximations for various values of $ y $ (knowing the limiting cases) and linear interpolate the appropriate values. A good choice of knot points are equally spaced values of $ \sqrt{y} $.
