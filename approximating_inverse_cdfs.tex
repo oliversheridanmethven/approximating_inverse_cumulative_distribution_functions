@@ -11,6 +11,8 @@
 \usepackage{subfigure}
 \usepackage[binary-units=true]{siunitx}
 
+\usepackage{hyperref} % Should usually be loaded last. 
+
 \newfloat{lstfloat}{htbp}{lop} % To put the listings in. 
 \renewcommand{\lstlistingname}{Code} % Rename them as codes. 
 
@@ -694,7 +696,7 @@ Piecewise cubic  & $ \tilde{c}_l \approx \tfrac{1}{5}\hat{c}_l $& $ \tilde{V}_l 
 
 These cost savings are idealised in respect that we have attributed the cost entirely to the generation of the random numbers. While this is quite a common assumption, the validity of this assumption will diminish the faster the approximations become, as the basic cost of the other arithmetic operations becomes significant. Thus, while a practitioner should have their ambitions set to achieve these savings, they should set more modest expectations.
 
-\section{The non central $ \chi^2 $ distribution}
+\section{The non central \texorpdfstring{$ \bm{\chi^2} $}{chi-squared} distribution}
 \label{sec:the_non_central_chi_squared_distribution}
 
 A second distribution of considerable practical interest is the non central $ \chi^2 $ distribution, which regularly arises in interest rate models from the Cox-Ingersoll-Ross (CIR) short rate model \citep{cox1985theory}. The distribution is parametrised as $ \chi^2_\nu(\lambda) $, where $ \nu > 0 $ denotes the degrees of freedom and $ \lambda \geq 0 $ the non centrality parameter, where we denote the inverse cumulative distribution function as $ C^{-1}_\nu(\cdot; \lambda) $. Having such a parametrised distribution will naturally increase the complexity of any implementation, whether it be exact or approximate. This added complexity makes the distribution considerably more expensive to compute. 

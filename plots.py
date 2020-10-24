@@ -394,7 +394,6 @@ def plot_variance_reduction_cir_process(savefig=False):
 
 
 def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
-    """ Plots a polynomial approximation to the non-central chi-squared. """
     dof = 1.0
     ncx2_approx = construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof, n_intervals=4 + 1)
     u = np.linspace(0.0, 1.0, 100000)[:-1]  # Excluding the end points.
