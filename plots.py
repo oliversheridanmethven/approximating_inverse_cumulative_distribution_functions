@@ -93,7 +93,7 @@ def plot_piecewise_linear_gaussian_approximation(savefig=False):
     plt.clf()
     plt.plot(u, norm_inv(u), 'k--', label=r'$\Phi^{-1}(x)$')
     plt.plot(u, norm_inv_approx(u), 'k,', label=r'__nolegend__')
-    plt.plot([], [], 'k-', label=r'$Q(x)$')
+    plt.plot([], [], 'k-', label=r'$D(x)$')
     plt.xlabel(r"$x$")
     plt.xticks([0, 1])
     plt.yticks([-3, 0, 3])
