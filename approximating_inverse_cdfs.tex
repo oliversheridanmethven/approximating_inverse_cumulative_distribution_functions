@@ -62,53 +62,6 @@ For random variables produced through the inverse transform method, approximate 
 
 \maketitle
 
-\clearpage
-\todo[inline=true, caption={General contents}]{
-\centerline{\underline{\textbf{The general structure}}}
-\begin{enumerate}
-\item Introduction
-\begin{enumerate}
-\item Introduction to exact random variables
-\item Introduction to some of the typical approximations used to make random variables more computationally accessible. (moment matching by Muller, and then Rademacher variables and the weak EM scheme.)
-\item Introduction to multilevel Monte Carlo and the use of cheap random variables. (Cite other work by me and Mike).
-\item Mention the partner repo which will contain all the code and has all this bundled into small demos. 
-\item Contributions of this work. 
-\end{enumerate}
-\item Approximate random variables
-\begin{enumerate}
-\item Approximate the inverse CDF
-\item The Gaussian distribution.
-\item Piecewise constant approximation
-\item Piecewise linear (polynomial?) approximation with dyadic intervals.
-\item The RMSE of the approximations. 
-\end{enumerate}
-\item Implementation results
-\begin{enumerate}
-\item Times in Python
-\item Times in C. 
-\end{enumerate}
-\item Multilevel Monte Carlo
-\begin{enumerate}
-\item Introduction to Multilevel Monte Carlo and expected savings. 
-\item Cite our analysis results. 
-\item Variance reduction
-\item Demonstrative example with a ``target accuracy'' Vs computational time for a European call option for the original multilevel Monte Carlo, and then a second using our approximate random variables. (Geometric Brownian motion and simple call options.)
-\item Demonstrate similar results appear to hold for the Milstein scheme. 
-\end{enumerate}
-\item Extensions to  the non central $ \chi^2 $ scheme. 
-\begin{enumerate}
-\item How to simulate. 
-\item Python times. 
-\item C times. 
-\item Price some example analytic and path dependent options and show the computational savings. 
-\end{enumerate}
-\item Conclusions. 
-\item Acknowledgements and funding. 
-\end{enumerate}
-}
-\clearpage
-
-
 \section{Introduction}
 \label{sec:introduction}
 
@@ -215,7 +168,7 @@ Let a piecewise constant approximation $ Q \approx \Phi^{-1} $ use $ 2^q $ equal
 \item \label{con:intermediate_values} $ \Phi^{-1}(u_k) \leq Q_k \leq \Phi^{-1}(u_{k+1}) $ for $ k \in \{2^{q-1}, 2^{q-1} + 1, \ldots, K-1\} $.
 \item \label{con:bounded_asymptotic_growth} $ \Phi^{-1}(u_K) \leq Q_K \leq \Phi^{-1}(u_K) + Cq^{-1/2} $.
 \end{enumerate}
-For any $ p \geq 2 $ we have $ \lVert  Q - \Phi^{-1} \rVert_p^p = O(2^{-q}q^{-p/2})$ for $ q \gg 1 $.
+For any even integer $ p \geq 2 $ we have $ \lVert  Q - \Phi^{-1} \rVert_p^p = O(2^{-q}q^{-p/2})$ for $ q \gg 1 $.
 \end{theorem}
 
 \begin{proof} Defining $ A_k \coloneqq \int_{u_k}^{u_{k+1}} \lvert\Phi^{-1}(u) - Q_k\rvert^p \dd{u} $ for $ k \in \{0,1, \ldots, K\} $ with $ u_{K+1} \coloneqq 1 $ where $ K $ is an even number, then we have $ \lVert Q - \Phi^{-1} \rVert_p^p = \sum_{k=0}^{K} A_k $.  We use condition (\ref{con:symmetry}) to reduce our considerations to the domain $ (\tfrac{1}{2}, 1) $, where $ \Phi^{-1} $ is strictly convex, and thus obtain $ \lVert Q - \Phi^{-1} \rVert_p^p = 2 \sum_{k=2^{q-1}}^{K-1} A_k + 2 A_K $. As $ \Phi^{-1} $ is convex, then from the intermediate value theorem there exists a $ \xi_k \in I_k $ such that $ Q_k = \Phi^{-1}(\xi_k) $. Noting that $ \dv{z} \Phi^{-1}(z) = \tfrac{1}{\phi(\Phi^{-1}(z))} $, then from the mean value theorem there exists an $ \eta_k \in [u_k, \xi_k)$ such that $ \Phi^{-1}(u) - \Phi^{-1}(\xi_k) = \tfrac{u - \xi_k}{\phi(\Phi^{-1}(\eta_k))} $ for any $ u \in [u_k, \xi_k)$. Furthermore, as $ \phi $ is monotonically decreasing in $ (\tfrac{1}{2}, 1) $, then introducing $ z_k \coloneqq \Phi^{-1}(u_k) $ we have $ \lvert \Phi^{-1}(u) - \Phi^{-1}(\xi_k)\rvert \leq \tfrac{2^{-q}}{\phi(z_{k+1})}$.  Substituting this bound into $ \sum_{k=2^{q-1}}^{K-1} A_k $ in our expression for $ \lVert Q - \Phi^{-1}\rVert_p^p $ gives
@@ -239,7 +192,6 @@ A_K
 \leq 2^{p-1} \int_{z_K}^{\infty} \lvert Q_K - z\rvert^p \phi(z) \dd{z} +  2^{p-1} \int_{u_K}^{1} \lvert Q_K - z_K \rvert^p \dd{u} 
 \leq 2^{p-q-1} p! z_K^{-p} + 2^{p-q-1} C^p q^{-p/2}.
 \end{equation*}
-\todo{Have I assumed $ p $ is even for these integrands? Check the integration limits. Are the lemmas still valid with the abs?}
 
 Combining our two bound for $ \sum_{k=2^{q-1}}^{K-1} A_k $ and $ A_K $ into our expression for  $ \lVert Q - \Phi^{-1}\rVert_p^p $ we obtain
 \begin{equation*}
@@ -411,7 +363,7 @@ o(r^{K-1}),
 where for the second equality we used lemma~\ref{lemma:approximate_tail_values} in the limit $ r^{K-1} \to 0 $. \qedhere
 \end{proof}
 
-We can see then from theorem~\ref{thm:piecewise_linear_approximation_error} that the $ O((1 - r)^{2p}) $\todo{I think for an $ m $-th order polynomial this will change to $ O((1 - r)^{(m+1)p}) $?} comes from the central regions, and is reduced by taking $ r \to 1 $, and the $ o(r^{K-1}) $ term is from the final singular interval, and is reduced by taking $ r^{K-1} \to 0 $. The key point of interest with this result is that the error from the central regions and the singular region are decoupled. In order to decrease the overall error, it is not sufficient to only increase the number of intervals ($ K \to \infty $), which would only improve the error from the singular interval, but the decay rate must also be decreased ($ r \to 1 $). The independence and interplay of these two errors is important for balancing the fidelity between the central and edge regions.
+We can see then from theorem~\ref{thm:piecewise_linear_approximation_error} that the $ O((1 - r)^{2p}) $ comes from the central regions, and is reduced by taking $ r \to 1 $, and the $ o(r^{K-1}) $ term is from the final singular interval, and is reduced by taking $ r^{K-1} \to 0 $. The key point of interest with this result is that the error from the central regions and the singular region are decoupled. In order to decrease the overall error, it is not sufficient to only increase the number of intervals ($ K \to \infty $), which would only improve the error from the singular interval, but the decay rate must also be decreased ($ r \to 1 $). The independence and interplay of these two errors is important for balancing the fidelity between the central and edge regions.
 
 There are some natural follow on questions concerning the piecewise linear construction presented in theorem~\ref{thm:piecewise_linear_approximation_error}: can we make it continuous, can we use higher order polynomials, and how can we determine the polynomials optimal coefficients? The best starting point to answering these is to consider the possibility of using higher order polynomials, such as e.g.\ cubics, (recall that our primary aim is still speed and simplicity rather than machine precision fidelity). Again considering the arbitrary interval $ [a,b] $, suppose we are trying to approximate $ f $ by a $ m $-th order polynomial $ \tilde{f} $ where $ f(u) \approx \tilde{f}(u) = c_0 + c_1 u + c_2 u^2 + \cdots + c_m u^m $ with $ c_m \neq 0 $ for any $ u \in [a,b] $. Sticking with the $ L^2 $ optimal polynomial, we can minimise the $ L^2 $ error by equating the functional derivates to zero, thus obtaining the set of $ m + 1 $ linear simultaneous equations of the form $ A\bm{x} = \bm{b} $ where: $ A_{i,j} = \tfrac{b^{i+j+1} - a^{i+j+1}}{i+j+1} $, $ \bm{x}_i = c_i $, and $ \bm{b}_{i} = \int_{a}^{b} u^i f(u) \dd{u} $, with indices $ i,j \in \{0,1,2,\ldots,m\} $. Using this it is readily possible fit higher order polynomials, which is how we were able to generate figure~\ref{fig:piecewise_linear_gaussian_approximation_error}. Furthermore, we can trivially use our bound from theorem~\ref{thm:piecewise_linear_approximation_error} to bound higher order polynomials, and thus piecewise quadratic or cubic approximations are permissible in our framework. This then just leaves the open question about a forming a continuous piecewise linear approximation. Requiring that the approximation is continuous over the entire interval $ (0, 1) $ would turn our previously minimisation into a constrained minimisation problem, with an awkward set of constraints, where we can no longer trivially set the functional derivatives to zero.  Of course, while such a continuous approximation may be more aesthetically pleasing, it is of no practical consequence for the inverse transform method, and by definition will have a worse overall $ L^2 $ error than the discontinuous approximation from theorem~\ref{thm:piecewise_linear_approximation_error}. Thus we avoid and discourage imposing such a constraint. 
 
@@ -543,7 +495,7 @@ The reason why we decide to implement the approximation in single precision usin
 
 \subsection{Performance of the implementations}
 
-Both the piecewise constant and linear approximation implementations that we  presented in codes~\ref{code:piecewise_constant_approximation} and \ref{code:piecewise_linear_approximation} are non branching, vector capable, and use only basic arithmetic and bit wise operations, and thus we anticipate their performance should be exceptionally good. Indeed, their performance, along with several other implementations are shown in table~\ref{tab:implementation_times}, with experiments performed on an Intel Xeon Gold (Skylake) CPU and an Arm based Cavium ThunderX2 \citep{sheridan2020approximate_random}.\todo{Perhaps Simon McIntosh smith has some new hardware where we can test out the piecewise polynomials using OpenMO and assembly?}
+Both the piecewise constant and linear approximation implementations that we  presented in codes~\ref{code:piecewise_constant_approximation} and \ref{code:piecewise_linear_approximation} are non branching, vector capable, and use only basic arithmetic and bit wise operations, and thus we anticipate their performance should be exceptionally good. Indeed, their performance, along with several other implementations are shown in table~\ref{tab:implementation_times}, with experiments performed on an Intel Xeon Gold (Skylake) CPU and an Arm based Cavium ThunderX2 \citep{sheridan2020approximate_random}.
 
 \begin{table}[htb]
 \caption{Performance of various $ \Phi^{-1} $ implementations and approximations.}
@@ -594,7 +546,21 @@ E(\hat{P}_L)
 \sum_{l = 0}^{L} E(\tilde{P}_l - \tilde{P}_{l-1}) +  E(\hat{P}_l - \hat{P}_{l-1} - \tilde{P}_l + \tilde{P}_{l-1}),
 \end{equation*}
 where the first approximation is regular Monte Carlo procedure \citep{glasserman2013monte}, the first equality is the usual multilevel Monte Carlo decomposition \citep{giles2008multilevel}, and the final equality is the nested multilevel Monte Carlo framework \citep{giles2020approximate,sheridan2020nested}.
-\citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} show that the two way differences in the regular and nested multilevel Monte Carlo settings behave identically, and the main result of their analysis is determining the behaviour of the final four way difference's variance, finding transitional behaviour between differentiable and non-differentiable Lipschitz functions \citep[lemmas~4.10 and 4.11]{giles2020approximate} \citep[corollaries~6.2.6.2 and 6.2.6.3]{sheridan2020nested}. 
+\citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} show that the two way differences in the regular and nested multilevel Monte Carlo settings behave identically, and the main result of their analysis is determining the behaviour of the final four way difference's variance \citep[lemmas~4.10 and 4.11]{giles2020approximate} \citep[corollaries~6.2.6.2 and 6.2.6.3]{sheridan2020nested}. They find that for Lipschitz continuous and differentiable functionals that 
+\begin{equation*}
+\lVert \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} - \tilde{P}^{\mathrm{f}} + \tilde{P}^{\mathrm{c}}\rVert_p 
+\leq O(\delta^{1/2} \lVert Z - \tilde{Z} \rVert_{p'}) 
+\end{equation*}
+for some  $ p' $ such that $ 2 \leq p < p' < \infty $, and that for Lipschitz continuous but non differential functionals that 
+\begin{equation*}
+\lVert \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} - \tilde{P}^{\mathrm{f}} + \tilde{P}^{\mathrm{c}}\rVert_p 
+\leq O(\min\{
+\delta^{1/2} \lVert Z - \tilde{Z} \rVert_{p'}^{p'(1-\epsilon)/(p'+1)},
+\delta^{(1-\epsilon)/2p -1/2p'}    \lVert Z - \tilde{Z} \rVert_{p'}
+\})
+\end{equation*}
+for some  $ \epsilon $ such that $ 0<\epsilon<1 - \tfrac{p}{p'} $. We can see that in all circumstances covered by their analysis that there is a dependence on the approximation error $  \lVert Z - \tilde{Z} \rVert_{p'} $ for some $ L^{p'} $ norm where $ p' > 2 $. As the lower bound on $ p' $ is strict, we see that the $ L^2 $ norms produced by \citet{giles2019random_quadrature} are insufficient for the nested multilevel Monte Carlo setting from \citet{giles2020approximate}, whereas our earlier bounds from section~\ref{sec:approximate_gaussian_random_variables} are. 
+
 
 
 \subsection{Expected time savings}
@@ -738,7 +704,7 @@ $ \tilde{C}^{-1}_{\nu}(\cdot;\lambda) = \lambda + \nu + 2 \sqrt{\lambda + \nu} \
 \centering
 
 \hfill
-\subfigure[A piecewise linear approximation to the non central $ \chi^2 $ distribution with $ \nu = 1 $ and $ \lambda \in \{1,10,20\} $.\label{fig:non_central_chi_squared_linear_approximation}]{\includegraphics{non_central_chi_squared_linear_approximation}}\hfill
+\subfigure[Example piecewise linear approximations to the non central $ \chi^2 $ distribution with $ \nu = 1 $ and $ \lambda \in \{1,10,20\} $ using 8 intervals and 16 interpolation values.\label{fig:non_central_chi_squared_linear_approximation}]{\includegraphics{non_central_chi_squared_linear_approximation}}\hfill
 \subfigure[The variance of the terms from simulating the CIR process. The (\raisebox{-0.1em}{\huge$ \bullet$})-marker is the underlying CIR process, and the markers ({\large $ \blacktriangledown $}, $ \blacksquare $, $ \blacklozenge $) indicate the variances of possible two way multilevel corrections. ({\large $ \blacktriangledown $}) Euler-Maruyama. ($ \blacksquare $) Piecewise linear. ($ \blacklozenge $) Piecewise cubic.\label{fig:cir_process_variance_reduction}]{\includegraphics{variance_reduction_cir_process}}\hfill 
 \caption{The non central $ \chi^2 $ distribution from the CIR process, and the variance of path simulations and possible multilevel corrections.}
 \label{fig:cir_process}
@@ -786,7 +752,7 @@ There are only two difficulties with constructing such an approximation. The fir
 }\hfill
 \end{table}
 
-\subsection{Simulating paths from the Cox-Ingersoll-Ross process}
+\subsection{Simulating the Cox-Ingersoll-Ross process}
 
 We have mentioned that the non central $ \chi^2 $ distribution arises from the Cox-Ingersoll-Ross (CIR) process, which can be written as $ \dd{X_t} = \kappa (\theta - X_t) \dd{t} + \sigma \sqrt{X_t} \dd{W_t} $ for strictly positive parameters $ \kappa $, $ \theta $ and $ \sigma $. The distribution for $ X_T $ conditioned on $ X_0 $ is a non central $ \chi^2 $ distribution with $ \nu = \tfrac{4\kappa\theta}{\sigma^2} $ and $ \lambda = \tfrac{4\kappa X_0 \exp(-\kappa T)}{\sigma^2(1 - \exp(-\kappa T))} $. Simulating this with the Euler-Maruyama scheme forcibly approximates the non central $ \chi^2 $ distribution as a Gaussian distribution, and can require very finely resolved path simulations to bring the bias down to an acceptable level, as explored by \citet{broadie2006exact}. Similarly the Euler-Maruyama scheme is numerically ill posed due to the $ \sqrt{X_t} $ term, and several adaptions exist to handle this appropriately \citep{deelstra1998convergence,lord2010comparison,berkaoui2008euler,higham2002strong,alfonsi2005discretization,alfonsi2008second,alfonsi2010high,dereich2012euler,cozma2020strong_euler,gyongy2011note}, especially when the Feller condition $ 2\kappa\theta \geq \sigma^2 $ is not satisfied \citep{feller1951two,gyongy1998note}.
 
@@ -799,20 +765,21 @@ From figure~\ref{fig:cir_process_variance_reduction} we can see the exact underl
 \section{Conclusions}
 \label{sec:conclusions}
 
-\todo[inline=true, caption={Conclusions}]{
-\begin{enumerate}
-\item Conclusions (mimic conclusions)
-\begin{enumerate}
-\item What problem have we solved/tackled. (random variables are expensive). 
-\item How did we solve it? (Inverse transform method with approximations, piecewise constant, linear, and higher order piecewise polynomials).
-\item How are our solutions interesting theoretically and why are they important? (nested MLMC analysis, ans slight improvement on ritter.)
-\item Why do our implementations work so especially well? (non branching, simple operations, exploit the cache or vector registers.)
-\item What savings can a user expect?
-\item It works for the non central $ \chi^2 $ distribution too! (which already struggles with large bias).
-\item Where can i get hold of these implementations? (My repos)
-\end{enumerate}
-\end{enumerate}
-}
+The expense of sampling random variables is a widespread challenge, common across a range of disciplines including: encryption, animation \citep{lee2017vectorized}, and financial simulations. In the work presented, we proposed, developed, analysed, and implemented approximate random variables as a means of circumventing this problem for a variety of modern hardware. By incorporating these into a nested multilevel Monte Carlo framework we showcased how the full speed improvements offered can be recovered with near perfect efficiency without losing any accuracy. With a detailed treatment, we showed that even for basic simulations of geometric Brownian motions requiring Gaussian random variables speed ups of a factor 5 or more can be expected. The same framework was also demonstrated to be applicable to the more difficult Cox-Ingersoll-Ross process and its non central $ \chi^2 $ distribution, offering the potential for vast computational savings. 
+
+For sampling from a wide class of distributions, we inspected the inverse transform method. Unfortunately, this method is expensive as it relies on a distribution's inverse cumulative distribution function. We showcased that many implementations of the Gaussian distribution's inverse cumulative distribution function, while accurate to near machine precision, are ill suited in several respects for modern vectorised hardware. To address this problem, we introduced a generalised notion of approximate random variables, produced from using approximations to a distribution's inverse cumulative distribution function. The two major classes of approximation we introduced were: piecewise constant approximations using equally spaced intervals, and piecewise polynomial approximations using geometrically small intervals dense near the distribution's tails. These cover a wide class of possible approximations, and notably recover as special cases: Rademacher random variables and the weak Euler-Maruyama scheme \citep{glasserman2013monte}, moment matching schemes by \citet{muller2015improving}, and truncated bit approximations by \citet{giles2019random_quadrature}. For piecewise constant and linear approximations, we analysed and bound the error for a range of possible norms. The significance of these bounds is that they are valid for arbitrarily high moments, which extends the results from \citet{giles2019random_quadrature}, and crucially is necessary for the nested multilevel Monte Carlo analysis by \citet{giles2020approximate}. Lastly, these approximations were able to achieve very high fidelities, with the piecewise polynomials using geometric intervals have an inherently very high fidelity. 
+
+With the approximations detailed from a mathematical perspective, we highlighted two possible implementations in C \citep{sheridan2020approximate_random}. The benefit of these approximations is that they are by design ideally suited for modern vector hardware and achieve the highest possible computational speeds. They can be readily vectorised using OpenMP SIMD directives, have no conditional branching, avoid division and expensive function evaluations, and only require simple additions, multiplications, and bit manipulations. The piecewise constant and linear implementations were orders of magnitude faster than most freely available open-source libraries, and typically a factor of 5--7 times faster than the proprietary Intel MKL library, achieving close to the maximum speed of just reading and writing to memory. This speed comes from the simplicity of their operations, and heavy capitalising on the fast speeds of querying the cache and vector registers. 
+
+Incorporating approximate random variables into the nested multilevel Monte Carlo framework by \citet{giles2020approximate}, the low errors and fast speeds of the approximations could be exploited to obtain full speed benefits without losing accuracy. Inspecting the appropriate multilevel variance reductions, we demonstrated how practitioners can expect to obtain speed improvements of a factor of 5--7, where the fastest approximation was the piecewise linear approximation. This appears to be the case when using either the Euler-Maruyama or Milstein schemes. 
+
+Considering the Cox-Ingersoll-Ross process \citep{cox1985theory}, this is known to give rise to the non central $ \chi^2 $ distribution, which is an example of a parametrised distribution, and is also colossally expensive to sample from, as we demonstrated. We applied our approximation framework to this to produce a parametrised approximation. The error of using our approximate random variables was orders of magnitude lower than approximating paths using the Euler-Maruyama scheme, showing our approximate random variables are considerably more suitable for generating path simulations than the Euler-Maruyama scheme. This resolves the problem of the Euler-Maruyama scheme having a very large bias for the Cox-Ingersoll-Ross process \citep{broadie2006exact}. Furthermore, as our implementation was only a marginal adaptation of the Gaussian distribution's implementation, the speed improvement offered are vast. 
+
+All of the code to produce these figures, tables, and approximations is freely available and hosted in repositories by \citet{sheridan2020approximate_inverse,sheridan2020approximate_random}, along with a getting started guide aimed at practitioners \citep{sheridan2020approximate_random}.
+
+\section{Acknowledgements}
+
+We would like to acknowledge and thank those who have financially sponsored this work. This includes the Engineering and Physical Sciences Research Council (EPSRC) and Oxford University's centre for doctoral training in Industrially Focused Mathematical Modelling (InFoMM), with the EP/L015803/1 funding grant. Furthermore, this research stems from a PhD project \citep{sheridan2020nested} which was funded by Arm and NAG. Additionally, funding was also provided by the Inference, Computation and Numerics for Insights into Cities (ICONIC) project, and the programme grant EP/P020720/1. Lastly, Mansfield College Oxford also contributed funds.  
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
