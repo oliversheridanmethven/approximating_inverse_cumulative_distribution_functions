@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm, ncx2
 from scipy.integrate import quad as integrate
-from approximate_random_variables.approximate_gaussian_distribution import construct_piecewise_constant_approximation, construct_symmetric_piecewise_polynomial_approximation
+from approximate_random_variables.approximate_gaussian_distribution import construct_piecewise_constant_approximation, construct_symmetric_piecewise_polynomial_approximation, rademacher_approximation
 from approximate_random_variables.approximate_non_central_chi_squared import construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation
 from mpmath import mp, mpf
 from timeit import default_timer as timer
@@ -175,10 +175,11 @@ def produce_geometric_brownian_motion_paths(dt, method=None, approx=None):
     Perform path simulations of a geometric Brownian motion.
     :param dt: Float. (Fraction of time).
     :param method: Str.
+    :param approx: List.
     :return: List. [x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx]
     """
     assert isinstance(dt, float) and np.isfinite(dt) and dt > 0 and (1.0 / dt).is_integer()
-    assert isinstance(method, str) and method in ['euler-maruyama', 'milstein']
+    assert isinstance(method, str) and method in ['euler_maruyama', 'milstein']
     assert approx is not None
     # The parameters.
 
@@ -241,11 +242,11 @@ def plot_variance_reduction(savefig=False):
     piecewise_constant = construct_piecewise_constant_approximation(inverse_norm, n_intervals=1024)
     piecewise_linear = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=1)
     piecewise_cubic = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=3)
-    approximations = {'constant': piecewise_constant, 'linear': piecewise_linear, 'cubic': piecewise_cubic}
-    markers = {'original': 'd', 'constant': 'o', 'linear': 'v', 'cubic': 's'}
+    approximations = {'constant': piecewise_constant, 'linear': piecewise_linear, 'cubic': piecewise_cubic, 'rademacher': rademacher_approximation}
+    markers = {'original': 'd', 'constant': 'o', 'linear': 'v', 'cubic': 's', 'rademacher': 'x'}
 
     results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in ['euler_maruyama', 'milstein']}  # Store the values of delta and the associated data.
-    time_per_level = 5.0
+    time_per_level = 3.0
     paths_min = 64
     for method in results:
         for approx_name, approx in approximations.items():
@@ -403,7 +404,7 @@ def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
     for non_centrality in non_centralities:
         plt.plot(u, ncx2.ppf(u, df=dof, nc=non_centrality), 'k--')
         plt.plot(u_approx, ncx2_approx(u_approx, non_centrality=non_centrality), 'k,')
-    plt.plot([], [],  'k--', label=r'$C^{-1}_{\nu}(x;\lambda)$')
+    plt.plot([], [], 'k--', label=r'$C^{-1}_{\nu}(x;\lambda)$')
     plt.plot([], [], 'k-', label=r'$\tilde{C}^{-1}_{\nu}(x;\lambda)$')
     plt.ylim(0, 50)
     plt.yticks([i for i in range(0, 51, 10)])
@@ -412,3 +413,13 @@ def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
     plt.legend(frameon=False)
     if save_figure:
         plt.savefig('non_central_chi_squared_linear_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
+
+
+def print_speed_up_and_efficiency():
+    for V, c in [[2 ** -1, 1.0 / 9.0], [2 ** -13, 1.0 / 6.0], [2 ** -14, 1.0 / 7.0], [2 ** -25, 1.0 / 5.0]]:
+        C = 1.0 + c
+        e = (1.0 + np.sqrt(V * C / c)) ** 2
+        s = c * e
+        m = np.sqrt(s/c)
+        M = np.sqrt(s * V /C)
+        print(1.0 / s, 100.0 / e, m, 1.0/M)
