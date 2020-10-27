@@ -673,16 +673,16 @@ We can see from figure~\ref{fig:variance_reduction} that the two way differences
 Estimating the best cost savings seen compared to Intel (HA) from table~\ref{tab:implementation_times}, the variance reductions from figure~\ref{fig:variance_reduction_euler_maruyama_scheme}, and using the simplifications $ \tilde{C}_l \approx \hat{c}_l + \tilde{c}_l $ and $ \tilde{v}_l \approx  \hat{v}_l $, then the estimated speed ups and their efficiencies are shown in table~\ref{tab:savings}. For the Rademacher approximation we use the optimistic  approximations that this achieves the maximum speed set by reading and writing and that it offers a variance reduction of $ 2^{-1} $. We can see from this that the piecewise linear approximation would give the largest savings, although the savings from the piecewise constant and cubic approximations are quite similar. Notice that while the piecewise cubic is achieving near perfect efficiency, its cost savings are not substantial enough to beat the marginally less efficient piecewise linear approximation which offers the larger potential savings. For all of our approximations the four way difference simulations are required very infrequently. Lastly, while the Rademacher random variables may offer the best time savings, the absence of any considerable variance reduction caused by the extremely low fidelity approximation results in a very inefficient multilevel scheme, demonstrating the balance required between speed and fidelity. 
 
 \begin{table}[htb]
-\caption{The cost savings, variance reductions, and possible speed ups from the various approximations.}
+\caption{The cost savings, variance reductions, and possible speed ups from approximating the Gaussian distribution.}
 \label{tab:savings}
 %\renewcommand{\arraystretch}{1.4}  % This is only local to this one table.
-\begin{tabular}{lcclrcc}
-Approximation  & $ {\log}_2 \left(\tfrac{\tilde{V}_l}{\hat{v}_l}\right) $ & $ \tfrac{\hat{c}_l}{\tilde{c}_l} $ & \multicolumn{2}{c}{Speed up} & $ \tfrac{\tilde{m}_l}{\hat{m}_l} $ & $ \tfrac{\tilde{m}_l}{\tilde{M}_l} $ \\[0.5em]
+\begin{tabular}{lcclrcr@{}l}
+Approximation  & $ {\log}_2 \left(\tfrac{\tilde{V}_l}{\hat{v}_l}\right) $ & $ \tfrac{\hat{c}_l}{\tilde{c}_l} $ & \multicolumn{2}{c}{Speed up} & $ \tfrac{\tilde{m}_l}{\hat{m}_l} $ & \multicolumn{2}{c}{$ \tfrac{\tilde{m}_l}{\tilde{M}_l} $} \\[0.5em]
 \hline
-Rademacher & $ -1 $ & 9 & 0.86 & (9.5\%) & 3.24 & 1.4 \\
-Piecewise constant & $ -13 $ & 6 & 5.66 & (94.4\%) & 1.03 & 240 \\
-Piecewise linear  & $ -14 $ & 7& 6.70 & (95.7\%) & 1.02 & 360 \\
-Piecewise cubic  & $ -25 $ & 5 & 5.00 & (99.9\%)& 1.00 & 14000\\ & 
+Rademacher & $ -1 $ & 9 & 0.86 & (9.5\%) & 3.24 & 1&.4 \\
+Piecewise constant & $ -13 $ & 6 & 5.66 & (94.4\%) & 1.03 & 240& \\
+Piecewise linear  & $ -14 $ & 7& 6.70 & (95.7\%) & 1.02 & 360 &\\
+Piecewise cubic  & $ -25 $ & 5 & 5.00 & (99.9\%)& 1.00 & 14000 & 
 \end{tabular}
 \end{table}
 
@@ -693,7 +693,7 @@ These cost savings are idealised in respect that we have attributed the cost ent
 
 A second distribution of considerable practical interest is the non central $ \chi^2 $ distribution, which regularly arises from the Cox-Ingersoll-Ross (CIR) interest rate model \citep{cox1985theory}. The distribution is parametrised as $ \chi^2_\nu(\lambda) $, where $ \nu > 0 $ denotes the degrees of freedom and $ \lambda \geq 0 $ the non centrality parameter, where we denote the inverse cumulative distribution function as $ C^{-1}_\nu(\cdot; \lambda) $. Having a parametrised distribution will naturally increase the complexity of any implementation, exact or approximate, and makes the distribution considerably more expensive to compute. 
 
-To gauge the procedure used, the associated function in Python's SciPy package (\texttt{ncx2.ppf}) calls the C routine \texttt{CDFCHN} from the CDFLIB library by \citet{brown1994dcdflib} (implementations available \citep{burkardt2020cdflib}). This computes the value by root finding  \citep[algorithm~R]{bus1975two} on the offset cumulative distribution function $ C_\nu(\cdot;\lambda) $, where $ C_\nu(\cdot;\lambda) $ is itself computed by a complicated series expansion \citep[(26.4.25)]{abramowitz1948handbook} involving the cumulative distribution function for the central $ \chi^2 $ distribution. Overall, there are many stages involved, and as remarked by \citet[\texttt{cdflib.c}]{burkardt2020cdflib}: \textit{``Very large values of
+To gauge the procedure used, the associated function in Python's SciPy package (\texttt{ncx2.ppf}) calls the C routine \texttt{cdfchn} from the CDFLIB library by \citet{brown1994dcdflib} (implementations available \citep{burkardt2020cdflib}). This computes the value by root finding  \citep[algorithm~R]{bus1975two} on the offset cumulative distribution function $ C_\nu(\cdot;\lambda) $, where $ C_\nu(\cdot;\lambda) $ is itself computed by a complicated series expansion \citep[(26.4.25)]{abramowitz1948handbook} involving the cumulative distribution function for the central $ \chi^2 $ distribution. Overall, there are many stages involved, and as remarked by \citet[\texttt{cdflib.c}]{burkardt2020cdflib}: \textit{``Very large values of
 [$ \lambda $] can consume immense computer resources''}. The analogous function \texttt{ncx2inv} in MATLAB, from its statistics and machine learning toolbox, appears to follow a similar approach based on its description \citep[page~4301]{matlab2018statistics}. To indicate the costs, on a local machine, the ratio between sampling from the non central $ \chi^2 $ distribution and the Gaussian distribution (\texttt{norm.ppf} and \texttt{norminv} in Python and MATLAB respectively) are shown in table~\ref{tab:non_central_chi_2_times}, from which it is clear that the non central $ \chi^2 $ distribution can be vastly more expensive than the Gaussian distribution. 
 
 \begin{table}[htb]
@@ -701,7 +701,7 @@ To gauge the procedure used, the associated function in Python's SciPy package (
 \caption{The computing ratio between the non-central $ \chi^2 $ and Gaussian distributions.}
 \label{tab:non_central_chi_2_times}
 
-\hfill
+\hfil
 \subfigure[Python.\label{tab:non_central_chi_2_times_python}]{
 \begin{tabular}{|r|rrrrr|}
 \multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
@@ -718,7 +718,7 @@ To gauge the procedure used, the associated function in Python's SciPy package (
 1000 & 459 & 458 & 455 & 471 & 474 \\
 \hline
 \end{tabular}
-}\hfill
+}\hfil 
 \subfigure[MATLAB.\label{tab:non_central_chi_2_times_matlab}]{
 \begin{tabular}{|r|rrrrr|}
 \multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
@@ -735,12 +735,87 @@ To gauge the procedure used, the associated function in Python's SciPy package (
 1000& 45872 & 43968 & 43807 & 44563 & 46780  \\
 \hline
 \end{tabular}
-}\hfill
+}\hfil \\[1em]
+
+
+
+\caption{The computing ratio between the exact function and the piecewise linear approximation.}
+\label{tab:implementation_times_chi}
+
+\hfil 
+\subfigure[C implementation (compared against CDFLIB).\label{tab:implementation_times_chi_c}]{
+\begin{tabular}{|r|ccccc|}
+\multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
+\cline{2-6}
+\multicolumn{1}{c|}{} & 1 &   5  &  10 &  50  & 100 \\
+\hline
+1    &    333&   412&   458&   666&   864\\
+5    &    391&   447&   534&   701&   966\\
+10   &    600&   668&   724&   801&   992\\
+50   &   1411&  1424&  1231&  1811&  1811\\
+100  &   2271&  2174&  2164&  2207&  2029\\
+200  &   2539&  2624&  2791&  2304&  2113\\
+500  &   5020&  4912&  4860&  4908&  4886\\
+1000 &   4822&  4859&  4866&  4791&  4980\\
+\hline
+\end{tabular}
+}\hfil
+\subfigure[C++ implementation (compared against Boost).\label{tab:implementation_times_chi_cpp}]{
+\begin{tabular}{|r|rrrrr|}
+\multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
+\cline{2-6}
+\multicolumn{1}{c|}{} & 1 &   5  &  10 &  50  & 100 \\
+\hline
+1    &    671&  1643&  1534&  1734&  2093\\
+5    &   1884&  1831&  1733&  2037&  2344\\
+10   &   1924&  1937&  1863&  2490&  2490\\
+50   &   2576&  2565&  2876&  2945&  2974\\
+100  &   3238&  3265&  3255&  3299&  3354\\
+200  &   4382&  4384&  4373&  4356&  4333\\
+500  &   5260&  5294&  5243&  5249&  5224\\
+1000 &   6101&  6022&  6026&  6147&  6093\\
+\hline
+\end{tabular}
+}\hfil\\[1em] 
+
+  
+\caption{The RMSE of approximations to the non-central $ \chi^2 $ distribution.}
+\label{tab:non_central_chi_2_rmse}
+
+\hfil
+\subfigure[Piecewise linear.\label{tab:non_central_chi_2_rmse_linear}]{
+\begin{tabular}{|r|rrrrr|}
+\multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
+\cline{2-6}
+\multicolumn{1}{c|}{} & 1 &   5  &  10 &  50  & 100 \\
+\hline
+1    &  0.036 & 0.036 & 0.041 & 0.070 & 0.095 \\
+5    &  0.045 & 0.047 & 0.050 & 0.076 & 0.100 \\
+10   &  0.054 & 0.056 & 0.059 & 0.081 & 0.104 \\
+50   &  0.098 & 0.099 & 0.101 & 0.116 & 0.133 \\
+100  &  0.134 & 0.135 & 0.136 & 0.148 & 0.161 \\
+200  &  0.186 & 0.187 & 0.188 & 0.196 & 0.207 \\
+\hline
+\end{tabular}
+}\hfil
+\subfigure[Piecewise cubic.\label{tab:non_central_chi_2_rmse_cubic}]{
+\begin{tabular}{|r|rrrrr|}
+\multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
+\cline{2-6}
+\multicolumn{1}{c|}{} & 1 &   5  &  10 &  50  & 100 \\
+\hline
+1  &    0.004 & 0.005 & 0.006 & 0.007 & 0.006 \\
+5  &     0.004 & 0.004 & 0.005 & 0.010 & 0.015 \\
+10  &   0.006 & 0.005 & 0.005 & 0.009 & 0.014 \\
+50  &    0.006 & 0.007 & 0.005 & 0.010 & 0.011 \\
+100 &   0.013 & 0.008 & 0.009 & 0.011 & 0.014 \\
+200 &   0.009 & 0.012 & 0.011 & 0.012 & 0.015 \\
+\hline
+\end{tabular}
+}\hfil
 \end{table}
 
 \subsection{Approximating the non central $ \chi^2 $ distribution}
-
-\todo{Throw together some C implementations and time it compared to GNU and Intel and compute some expected savings line in tables~\ref{tab:implementation_times} and \ref{tab:savings}.}
 
 There has been considerable research effort into quickly sampling from the non central $ \chi^2 $ distribution by various approximating distributions \citep{johnson1995continuous,sankaran1959non,abdel1954approximate,wilson1931distribution,hoaglin1977direct,shea1991algorithm,best1975algorithm,rice1968uniform}, with the most notable being an approximation using Gaussian random variables by \citet{abdel1954approximate}. Ultimately though, none of these approximate the inverse cumulative distribution function, so do not give rise to an obvious coupling mechanism for multilevel Monte Carlo simulations, whereas our framework does. Hence, our approximation scheme, while modest in its sophistication, appears a novel research direction in this area.
 
@@ -775,57 +850,36 @@ $ \tilde{C}^{-1}_{\nu}(\cdot;\lambda) \coloneqq \lambda + \nu + 2 \sqrt{\lambda 
 
 There are only two difficulties with constructing such an approximation. The first is that the distribution is no longer rotationally symmetry, which is easily remedied by constructing two approximations for $ (0, \tfrac{1}{2}] $ and $ (\tfrac{1}{2}, 1) $. The second difficulty is the parametrisation. Noting that $ y \in (0, 1) $ is associated with the non centrality parameter, we construct several approximations for various values of $ y $ (knowing the limiting cases) and linearly interpolate. A good choice of knot points are equally spaced values of $ \sqrt{y} $, where figure~\ref{fig:non_central_chi_squared_linear_approximation} uses 16 interpolation values.
 
-\begin{table}[htb]
-\centering    
-\caption{The RMSE of approximations to the non-central $ \chi^2 $ distribution.}
-\label{tab:non_central_chi_2_rmse}
+The performance of C and C++ implementations are shown in table~\ref{tab:implementation_times_chi}. Neither Intel, NAG, nor GSL offer an exact implementation of the inverse cumulative distribution function for the non central $ \chi^2 $ distribution. Consequently, for our C implementation we compare against the \texttt{cdfchn} function from CDFLIB \citep{brown1994dcdflib,burkardt2020cdflib}, and for our C++ implementation the \texttt{quantile} function from the Boost library \citep{boost2020library} acting on a \texttt{non\_central\_chi\_squared} object (\texttt{boost/math/distributions}). Like the other implementations, Boost computes the inverse by a numerical inversion of the cumulative distribution function. We can see from both tables~\ref{tab:implementation_times_chi_c} and \ref{tab:implementation_times_chi_cpp} that our approximation is orders of magnitude faster than the exact functions in both languages. 
 
-\hfill
-\subfigure[Piecewise linear.\label{tab:non_central_chi_2_rmse_linear}]{
-\begin{tabular}{|r|ccccc|}
-\multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
-\cline{2-6}
-\multicolumn{1}{c|}{} & 1 &   5  &  10 &  50  & 100 \\
-\hline
-1    &  0.036 & 0.036 & 0.041 & 0.070 & 0.095 \\
-5    &  0.045 & 0.047 & 0.050 & 0.076 & 0.100 \\
-10   &  0.054 & 0.056 & 0.059 & 0.081 & 0.104 \\
-50   &  0.098 & 0.099 & 0.101 & 0.116 & 0.133 \\
-100  &  0.134 & 0.135 & 0.136 & 0.148 & 0.161 \\
-200  &  0.186 & 0.187 & 0.188 & 0.196 & 0.207 \\
-\hline
-\end{tabular}
-}\hfill
-\subfigure[Piecewise cubic.\label{tab:non_central_chi_2_rmse_cubic}]{
-\begin{tabular}{|r|ccccc|}
-\multicolumn{1}{c}{\multirow{2}{*}{$ \lambda $}} & \multicolumn{5}{c}{$ \nu $} \\
-\cline{2-6}
-\multicolumn{1}{c|}{} & 1 &   5  &  10 &  50  & 100 \\
-\hline
-1  &    0.004 & 0.005 & 0.006 & 0.007 & 0.006 \\
-5  &     0.004 & 0.004 & 0.005 & 0.010 & 0.015 \\
-10  &   0.006 & 0.005 & 0.005 & 0.009 & 0.014 \\
-50  &    0.006 & 0.007 & 0.005 & 0.010 & 0.011 \\
-100 &   0.013 & 0.008 & 0.009 & 0.011 & 0.014 \\
-200 &   0.009 & 0.012 & 0.011 & 0.012 & 0.015 \\
-\hline
-\end{tabular}
-}\hfill
-\end{table}
+
+Lastly, the fidelity of our approximations across the range of parameter values and quantified by the errors shown in table~\ref{tab:non_central_chi_2_rmse}. A piecewise linear approximation achieves a consistently good RMSE, as seen in table~\ref{tab:non_central_chi_2_rmse_linear}. Similarly, the cubic approximation demonstrates the same behaviour in table~\ref{tab:non_central_chi_2_rmse_cubic}, and has an RMSE which is typically an order of magnitude less than the piecewise linear approximation. 
 
 \subsection{Simulating the Cox-Ingersoll-Ross process}
 
 We mentioned the non central $ \chi^2 $ distribution arises from the Cox-Ingersoll-Ross (CIR) process: $ \dd{X_t} = \kappa (\theta - X_t) \dd{t} + \sigma \sqrt{X_t} \dd{W_t} $ for strictly positive parameters $ \kappa $, $ \theta $ and $ \sigma $. The distribution of $ X_T $ is a non central $ \chi^2 $ distribution with $ \nu = \tfrac{4\kappa\theta}{\sigma^2} $ and $ \lambda = \tfrac{4\kappa X_0 \exp(-\kappa T)}{\sigma^2(1 - \exp(-\kappa T))} $ \citep{cox1985theory} \citep[pages~67--68]{munk2011fixed}. Simulating this with the Euler-Maruyama scheme forcibly approximates the non central $ \chi^2 $ distribution as a Gaussian distribution, and can require very finely resolved path simulations to bring the bias down to an acceptable level, as explored by \citet{broadie2006exact}. Similarly the Euler-Maruyama scheme is numerically ill posed due to the $ \sqrt{X_t} $ term, and several adaptions exist to handle this appropriately \citep{deelstra1998convergence,lord2010comparison,berkaoui2008euler,higham2002strong,alfonsi2005discretization,alfonsi2008second,alfonsi2010high,dereich2012euler,cozma2020strong_euler,gyongy2011note}, especially when the Feller condition $ 2\kappa\theta \geq \sigma^2 $ is not satisfied \citep{feller1951two,gyongy1998note}.
 
-Rather than approximating the non central $ \chi^2 $ with an exact Gaussian when using the Euler-Maruyama scheme, we propose using an approximate non central $ \chi^2 $ random variable, such as from a piecewise linear approximation. This has the benefit of offering vast time savings, whilst introducing far less bias than the Euler-Maruyama scheme. We suspect from our earlier results from table~\ref{tab:implementation_times} that a piecewise linear approximation should average at worst only a few clock cycles, giving vast savings from the times seen in table~\ref{tab:non_central_chi_2_times}\todo{Just code this up and time it in C. Shouldn't be too much work.}, and the approximations appear to achieve a high fidelity, as was seen from table~\ref{tab:non_central_chi_2_rmse}.
+Rather than approximating the non central $ \chi^2 $ with an exact Gaussian when using the Euler-Maruyama scheme, we propose using an approximate non central $ \chi^2 $ random variable, such as from a piecewise linear approximation. This has the benefit of offering vast time savings, whilst introducing far less bias than the Euler-Maruyama scheme. The piecewise linear approximation averages hundreds of times faster than the exact function, as seen in table~\ref{tab:non_central_chi_2_times}, giving vast savings, while still achieving a high fidelity, as was seen from table~\ref{tab:non_central_chi_2_rmse}.
 
-We can compare path simulations of the CIR process using the exact non-central $ \chi^2 $ distribution, piecewise linear and cubic approximations, and the truncated Euler-Maruyama scheme from \citet{higham2002strong} (where $ \sqrt{X_n} \to \sqrt{\lvert X_n \rvert} $). We set $ \kappa= \tfrac{1}{2}$ and  $ \theta = \sigma =T = X_0 = 1 $ (satisfy the Feller condition). The variance of underlying process and the differences between this and the approximations are shown in figure~\ref{fig:cir_process_variance_reduction}. From figure~\ref{fig:cir_process_variance_reduction} we can see the exact underlying process' variance does not vary with the discretisation, which is to be expected as the simulation is from the exact distribution, and thus has no bias. We can see that the Euler-Maruyama approximation to the process exhibits a strong convergence order $ \tfrac{1}{2} $, as expected \citep{higham2002strong,gyongy1998note}. For the piecewise linear approximation, as the fidelity will not vary with the discretisation, then subsequently the variance also does not vary. Furthermore, given the high fidelity seen in table~\ref{tab:non_central_chi_2_rmse_linear}, the drop in the variance is approximately $ 2^{-15} $. Similarly, the even higher fidelity cubic approximation demonstrates the same behaviour, but with a drop in variance of $ 2^{-25} $. With such large drops in the variance, we would expect our approximations to achieve near perfect efficiencies with respect to recovering the full time savings offered from our approximations, which the user can expect to be considerably more substantial than those for the Gaussian distribution. 
-\todo{Enumerate and quantify these in a table as we did for the Gaussian.}
+We can compare path simulations of the CIR process using the exact non-central $ \chi^2 $ distribution, piecewise linear and cubic approximations, and the truncated Euler-Maruyama scheme from \citet{higham2002strong} (where $ \sqrt{X_n} \to \sqrt{\lvert X_n \rvert} $). We set $ \kappa= \tfrac{1}{2}$ and  $ \theta = \sigma =T = X_0 = 1 $ (satisfy the Feller condition). The variance of underlying process and the differences between this and the approximations are shown in figure~\ref{fig:cir_process_variance_reduction}. From figure~\ref{fig:cir_process_variance_reduction} we can see the exact underlying process' variance does not vary with the discretisation, which is to be expected as the simulation is from the exact distribution, and thus has no bias. We can see that the Euler-Maruyama approximation to the process exhibits a strong convergence order $ \tfrac{1}{2} $, as expected \citep{higham2002strong,gyongy1998note}. For the piecewise linear approximation, as the fidelity will not vary with the discretisation, then subsequently the variance also does not vary. Furthermore, given the high fidelity seen in table~\ref{tab:non_central_chi_2_rmse_linear}, the drop in the variance is approximately $ 2^{-15} $. Similarly, the even higher fidelity cubic approximation demonstrates the same behaviour in table~\ref{tab:non_central_chi_2_rmse_cubic}, but with a drop in variance of $ 2^{-25} $. 
+
+We can quantify the savings that can be expected, where we have conservatively approximated the cost savings for both the linear and cubic approximations as a factor of 300 using table~\ref{tab:implementation_times_chi}. Coupling this with the variance reductions seen in figure~\ref{fig:cir_process_variance_reduction}, the anticipated cost savings are shown in table~\ref{tab:savings_chi}. We can see from this that both offer impressive time savings, and the piecewise cubic again achieves a near perfect efficiency. However, the piecewise linear approximation's efficiency, while good, is losing an appreciable fraction. Ultimately, both offer vast time savings by factors of 250 or higher.
+
+\begin{table}[htb]
+\caption{The cost savings, variance reductions, and possible speed ups from approximating the non central $ \chi^2 $ distribution.}
+\label{tab:savings_chi}
+\begin{tabular}{lcclrcr}
+Approximation  & $ {\log}_2 \left(\tfrac{\tilde{V}_l}{\hat{v}_l}\right) $ & $ \tfrac{\hat{c}_l}{\tilde{c}_l} $ & \multicolumn{2}{c}{Speed up} & $ \tfrac{\tilde{m}_l}{\hat{m}_l} $ & \multicolumn{1}{c}{$ \tfrac{\tilde{m}_l}{\tilde{M}_l} $} \\[0.5em]
+\hline
+Piecewise linear  & $ -15 $ & 300 & 249 & (83.3\%) & 1.09 & 2900 \\
+Piecewise cubic  & $ -25 $ & 300 & 298 & (99.4\%)& 1.00 & 100000  
+\end{tabular}
+\end{table}
 
 \section{Conclusions}
 \label{sec:conclusions}
 
-The expense of sampling random variables is a widespread challenge, common across a range of disciplines including: animation \citep{lee2017vectorized}, encryption, and financial simulations, to name just a few examples. In the work presented, we proposed, developed, analysed, and implemented approximate random variables as a means of circumventing this problem for a variety of modern hardwares. By incorporating these into a nested multilevel Monte Carlo framework we showcased how the full speed improvements offered can be recovered with near perfect efficiency without losing any accuracy. With a detailed treatment, we showed that even for basic simulations of geometric Brownian motions requiring Gaussian random variables, speed ups of a factor 5 or more can be expected. The same framework was also demonstrated to be applicable to the more difficult Cox-Ingersoll-Ross process and its non central $ \chi^2 $ distribution, offering the potential for vast computational savings.\todo{quantify} 
+The expense of sampling random variables is a widespread challenge, common across a range of disciplines including: animation \citep{lee2017vectorized}, encryption, and financial simulations, to name just a few examples. In the work presented, we proposed, developed, analysed, and implemented approximate random variables as a means of circumventing this problem for a variety of modern hardwares. By incorporating these into a nested multilevel Monte Carlo framework we showcased how the full speed improvements offered can be recovered with near perfect efficiency without losing any accuracy. With a detailed treatment, we showed that even for basic simulations of geometric Brownian motions requiring Gaussian random variables, speed ups of a factor 5 or more can be expected. The same framework was also demonstrated to be applicable to the more difficult Cox-Ingersoll-Ross process and its non central $ \chi^2 $ distribution, offering the potential for vast speed ups of a factor of 250 or more. 
 
 For sampling from a wide class of distributions, we inspected the inverse transform method. Unfortunately, this method is expensive as it relies on a distribution's inverse cumulative distribution function. We showcased that many implementations of the Gaussian distribution's inverse cumulative distribution function, while accurate to near machine precision, are ill suited in several respects for modern vectorised hardware. To address this problem, we introduced a generalised notion of approximate random variables, produced using approximations to a distribution's inverse cumulative distribution function. The two major classes of approximations we introduced were: piecewise constant approximations using equally spaced intervals, and piecewise polynomial approximations using geometrically small intervals dense near the distribution's tails. These cover a wide class of possible approximations, and notably recover as special cases: Rademacher random variables and the weak Euler-Maruyama scheme \citep{glasserman2013monte}, moment matching schemes by \citet{muller2015improving}, and truncated bit approximations by \citet{giles2019random_quadrature}. For piecewise constant and linear approximations, we analysed and bound the errors for a range of possible norms. The significance of these bounds is that they are valid for arbitrarily high moments, which extends the results from \citet{giles2019random_quadrature}, and crucially is necessary for the nested multilevel Monte Carlo analysis by \citet{giles2020approximate}. Lastly, these approximations were able to achieve very high fidelities, with the piecewise polynomials using geometric intervals having an inherently very high fidelity. 
 
@@ -833,7 +887,7 @@ With the approximations detailed from a mathematical perspective, we highlighted
 
 Incorporating approximate random variables into the nested multilevel Monte Carlo framework by \citet{giles2020approximate}, the low errors and fast speeds of the approximations could be exploited to obtain their full speed benefits without losing accuracy. Inspecting the appropriate multilevel variance reductions, we demonstrated how practitioners can expect to obtain speed improvements of a factor of 5--7, where the fastest approximation was the piecewise linear approximation. This appears to be the case when using either the Euler-Maruyama or Milstein schemes. 
 
-Considering the Cox-Ingersoll-Ross process \citep{cox1985theory}, this is known to give rise to the non central $ \chi^2 $ distribution, which is an example of a parametrised distribution, and is also colossally expensive to sample from, as we demonstrated. We applied our approximation framework to this to produce a parametrised approximation. The error of using our approximate random variables was orders of magnitude lower than approximating paths using the Euler-Maruyama scheme, showing our approximate random variables are considerably more suitable for generating path simulations than the Euler-Maruyama scheme. This circumvents the problem of the Euler-Maruyama scheme having a very large bias for the Cox-Ingersoll-Ross process \citep{broadie2006exact}. Furthermore, as our implementation was only a marginal adaptation of the Gaussian distribution's implementation, the speed improvement offered are vast. \todo{quantify}
+Considering the Cox-Ingersoll-Ross process \citep{cox1985theory}, this is known to give rise to the non central $ \chi^2 $ distribution, which is an example of a parametrised distribution, and is also colossally expensive to sample from, as we demonstrated. We applied our approximation framework to this to produce a parametrised approximation. The error of using our approximate random variables was orders of magnitude lower than approximating paths using the Euler-Maruyama scheme, showing our approximate random variables are considerably more suitable for generating path simulations than the Euler-Maruyama scheme. This circumvents the problem of the Euler-Maruyama scheme having a very large bias for the Cox-Ingersoll-Ross process \citep{broadie2006exact}. Furthermore, as our implementation was vastly quicker that those by CDFLIB and Boost, offering a speed improvement of 250 times or higher. 
 
 All of the code to produce these figures, tables, and approximations is freely available and hosted in repositories by \citet{sheridan2020approximate_inverse,sheridan2020approximate_random}, along with a getting started guide aimed at practitioners \citep{sheridan2020approximate_random}.
 

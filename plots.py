@@ -415,11 +415,22 @@ def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
         plt.savefig('non_central_chi_squared_linear_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
 
 
-def print_speed_up_and_efficiency():
-    for V, c in [[2 ** -1, 1.0 / 9.0], [2 ** -13, 1.0 / 6.0], [2 ** -14, 1.0 / 7.0], [2 ** -25, 1.0 / 5.0]]:
+def print_speed_up_and_efficiencies(variances_reductions, cost_reductions):
+    for V, c in zip(variances_reductions, cost_reductions):
+        c = 1.0/c
         C = 1.0 + c
         e = (1.0 + np.sqrt(V * C / c)) ** 2
         s = c * e
         m = np.sqrt(s/c)
         M = np.sqrt(s * V /C)
         print(1.0 / s, 100.0 / e, m, 1.0/M)
+
+def print_speed_up_and_efficiencies_non_central_chi_squared():
+    variances_reductions = [2 ** -15, 2 ** -25]
+    cost_reductions = [300.0, 300.0]
+    print_speed_up_and_efficiencies(variances_reductions, cost_reductions)
+
+def print_speed_up_and_efficiencies_gaussian():
+    variances_reductions = [2**-1, 2**-13, 2**-14, 2**-25]
+    cost_reductions = [9.0, 6.0, 7.0, 5.0]
+    print_speed_up_and_efficiencies(variances_reductions, cost_reductions)
