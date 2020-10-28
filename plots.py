@@ -20,6 +20,7 @@ from mpmath import mp, mpf
 from timeit import default_timer as timer
 from functools import wraps
 from progressbar import progressbar
+import json
 
 
 def time_function(func):
@@ -41,7 +42,7 @@ norm_inv = norm.ppf
 
 
 def plot_piecewise_constant_approximation(savefig=False):
-    u = np.linspace(0, 1, 10000)[1:-1]
+    u = np.linspace(0, 1, 1000)[1:-1]
     norm_inv_approx = construct_piecewise_constant_approximation(norm.ppf, 8)
     plt.clf()
     plt.plot(u, norm_inv(u), 'k--', label=r'$\Phi^{-1}(x)$')
@@ -54,6 +55,8 @@ def plot_piecewise_constant_approximation(savefig=False):
     plt.legend(frameon=False)
     if savefig:
         plt.savefig('piecewise_constant_gaussian_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
+        with open('piecewise_constant_gaussian_approximation.json', "w") as output_file:
+            output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
 
 
 def plot_piecewise_constant_error(savefig=False):
@@ -85,10 +88,12 @@ def plot_piecewise_constant_error(savefig=False):
     plt.legend(frameon=False, handlelength=1, borderaxespad=0)
     if savefig:
         plt.savefig('piecewise_constant_gaussian_approximation_error.pdf', format='pdf', bbox_inches='tight', transparent=True)
+        with open('piecewise_constant_gaussian_approximation_error.json', "w") as output_file:
+            output_file.write(json.dumps(res, indent=4))
 
 
 def plot_piecewise_linear_gaussian_approximation(savefig=False):
-    u = np.linspace(0, 1, 10000)[1:-1]
+    u = np.linspace(0, 1, 1000)[1:-1]
     norm_inv_approx = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals=5, polynomial_order=1)
     plt.clf()
     plt.plot(u, norm_inv(u), 'k--', label=r'$\Phi^{-1}(x)$')
@@ -101,6 +106,8 @@ def plot_piecewise_linear_gaussian_approximation(savefig=False):
     plt.legend(frameon=False)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
+        with open('piecewise_linear_gaussian_approximation.json', "w") as output_file:
+            output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
 
 
 def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False):
@@ -145,21 +152,26 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     plt.ylim(1e-8, 1e-1)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation_error_singular_interval.pdf', format='pdf', bbox_inches='tight', transparent=True)
+        with open('piecewise_linear_gaussian_approximation_error_singular_interval.json', "w") as output_file:
+            output_file.write(json.dumps({k: [float(i) for i in v] for k, v in {'r^{K-1}': 2*x, 'integral': y_integral, 'O-bound': y2 / [y2[0] / y_integral[0]], 'o-bound': y1 / [y1[0] / y_integral[0]]}.items()}, indent=4))
+
 
 
 def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False):
     polynomial_orders = range(6)
     interval_sizes = [2, 4, 8, 16]
     plt.clf()
-    for n_intervals in interval_sizes:
-        rmse = [None] * len(polynomial_orders)
+    results = {s: {} for s in interval_sizes}
+    for n_intervals in results:
         for polynomial_order in polynomial_orders:
             approximate_inverse_gaussian_cdf = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals + 1, polynomial_order)  # +1 as we have the 0 interval which is measure 0.
             discontinuities = [0.5 ** (i + 2) for i in range(n_intervals)]  # Makes the numerical integration involved in the RMSE easier.
-            rmse[polynomial_order] = integrate(lambda u: 2.0 * (norm.ppf(u) - approximate_inverse_gaussian_cdf(u)) ** 2, 0, 0.5, points=discontinuities)[0] ** 0.5
-        plt.plot(polynomial_orders, rmse, 'ko:', label='__nolengend__')
+            rmse = integrate(lambda u: 2.0 * (norm.ppf(u) - approximate_inverse_gaussian_cdf(u)) ** 2, 0, 0.5, points=discontinuities)[0] ** 0.5
+            results[n_intervals][polynomial_order] = rmse
+        poly_orders, rmse = zip(*results[n_intervals].items())
+        plt.plot(poly_orders, rmse, 'ko:', label='__nolengend__')
         plt.plot([], [], 'ko', label=n_intervals)
-        plt.gca().text(polynomial_orders[-1] + 0.2, rmse[-1], str(n_intervals), va='center')
+        plt.gca().text(poly_orders[-1] + 0.2, rmse[-1], str(n_intervals), va='center')
     plt.yscale('log')
     plt.ylabel(r'$\lVert Z - \tilde{Z}\rVert_2$')
     plt.xlabel('Polynomial order')
@@ -168,6 +180,9 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     plt.xticks(polynomial_orders)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation_error.pdf', format='pdf', bbox_inches='tight', transparent=True)
+        with open('piecewise_linear_gaussian_approximation_error.json', "w") as output_file:
+            output_file.write(json.dumps(results, indent=4))
+
 
 
 def produce_geometric_brownian_motion_paths(dt, method=None, approx=None):
@@ -244,47 +259,50 @@ def plot_variance_reduction(savefig=False):
     piecewise_cubic = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=3)
     approximations = {'constant': piecewise_constant, 'linear': piecewise_linear, 'cubic': piecewise_cubic, 'rademacher': rademacher_approximation}
     markers = {'original': 'd', 'constant': 'o', 'linear': 'v', 'cubic': 's', 'rademacher': 'x'}
+    for realisation in range(10):
+        results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in ['euler_maruyama', 'milstein']}  # Store the values of delta and the associated data.
+        time_per_level = 2.0
+        paths_min = 64
+        for method in results:
+            for approx_name, approx in approximations.items():
+                for dt in deltas:
+                    _, elapsed_time_per_path = time_function(produce_geometric_brownian_motion_paths)(dt, method, approx)
+                    paths_required = int(time_per_level / elapsed_time_per_path)
+                    if paths_required < paths_min:
+                        print("More time required for {} and {} with dt={}".format(method, approx_name, dt))
+                        break
 
-    results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in ['euler_maruyama', 'milstein']}  # Store the values of delta and the associated data.
-    time_per_level = 3.0
-    paths_min = 64
-    for method in results:
-        for approx_name, approx in approximations.items():
-            for dt in deltas:
-                _, elapsed_time_per_path = time_function(produce_geometric_brownian_motion_paths)(dt, method, approx)
-                paths_required = int(time_per_level / elapsed_time_per_path)
-                if paths_required < paths_min:
-                    print("More time required for {} and {} with dt={}".format(method, approx_name, dt))
-                    break
+                    originals, corrections = [[None for i in range(paths_required)] for j in range(2)]
+                    for path in range(paths_required):
+                        x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx = produce_geometric_brownian_motion_paths(dt, method, approx)
+                        originals[path] = x_fine_exact - x_coarse_exact
+                        corrections[path] = min((x_fine_exact - x_coarse_exact) - (x_fine_approx - x_coarse_approx), (x_fine_exact - x_fine_approx) - (x_coarse_exact - x_coarse_approx), sum([x_fine_exact, -x_coarse_exact, -x_fine_approx, x_coarse_approx]))  # might need revising for near machine precision.
+                    originals, corrections = [[j ** 2 for j in i] for i in [originals, corrections]]
+                    for name, values in [['original', originals], [approx_name, corrections]]:
+                        mean = np.mean(values)
+                        std = np.std(values) / (len(values) ** 0.5)
+                        [mean, std] = [float(i) for i in [mean, std]]
+                        results[method][name][dt] = [mean, std]
 
-                originals, corrections = [[None for i in range(paths_required)] for j in range(2)]
-                for path in range(paths_required):
-                    x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx = produce_geometric_brownian_motion_paths(dt, method, approx)
-                    originals[path] = x_fine_exact - x_coarse_exact
-                    corrections[path] = min((x_fine_exact - x_coarse_exact) - (x_fine_approx - x_coarse_approx), (x_fine_exact - x_fine_approx) - (x_coarse_exact - x_coarse_approx), sum([x_fine_exact, -x_coarse_exact, -x_fine_approx, x_coarse_approx]))  # might need revising for near machine precision.
-                originals, corrections = [[j ** 2 for j in i] for i in [originals, corrections]]
-                for name, values in [['original', originals], [approx_name, corrections]]:
-                    mean = np.mean(values)
-                    std = np.std(values) / (len(values) ** 0.5)
-                    results[method][name][dt] = [mean, std]
-
-    for method in results:
-        plt.clf()
-        for approx_name in results[method]:
-            x, y = zip(*results[method][approx_name].items())
-            y, y_std = list(zip(*y))
-            y_error = 1 * np.array(y_std)
-            plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[approx_name]))
-        plt.xscale('log', basex=2)
-        plt.yscale('log', basey=2)
-        plt.xlabel(r'Fine time increment $\delta^{\mathrm{f}}$')
-        plt.ylabel('Variance')
-        y_min_base_2 = 50
-        plt.ylim(2 ** -y_min_base_2, 2 ** -10)
-        plt.yticks([2 ** -i for i in range(10, y_min_base_2 + 1, 10)])
-        plt.xticks(deltas)
-        if savefig:
-            plt.savefig('variance_reduction_{}_scheme.pdf'.format(method), format='pdf', bbox_inches='tight', transparent=True)
+        for method in results:
+            plt.clf()
+            for approx_name in results[method]:
+                x, y = zip(*results[method][approx_name].items())
+                y, y_std = list(zip(*y))
+                y_error = 1 * np.array(y_std)
+                plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[approx_name]))
+            plt.xscale('log', basex=2)
+            plt.yscale('log', basey=2)
+            plt.xlabel(r'Fine time increment $\delta^{\mathrm{f}}$')
+            plt.ylabel('Variance')
+            y_min_base_2 = 50
+            plt.ylim(2 ** -y_min_base_2, 2 ** -10)
+            plt.yticks([2 ** -i for i in range(10, y_min_base_2 + 1, 10)])
+            plt.xticks(deltas)
+            if savefig:
+                plt.savefig('variance_reduction_{}_scheme_{}.pdf'.format(method, realisation), format='pdf', bbox_inches='tight', transparent=True)
+                with open('variance_reduction_{}_scheme_{}.json'.format(method, realisation), "w") as output_file:
+                    output_file.write(json.dumps(results[method], indent=4))
 
 
 def rmse_of_non_central_chi_squared_polynomial_approximations():
@@ -351,47 +369,50 @@ def plot_variance_reduction_cir_process(savefig=False):
     deltas = [0.5 ** i for i in range(8)]
     poly_orders = {'linear': 1, 'cubic': 3}
     poly_markers = (i for i in ['s', 'd'])
-    results = {k: {} for k in ['exact', 'euler_maruyama'] + list(poly_orders.keys())}
-    markers = {**{'exact': 'o', 'euler_maruyama': 'v'}, **{k: next(poly_markers) for k in poly_orders}}
     params = {'kappa': 0.5, 'theta': 1.0, 'sigma': 1.0}
     nu = 4.0 * params['kappa'] * params['theta'] / (params['sigma'] ** 2)
     approximations = [construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof=nu, polynomial_order=poly_order) for poly_order in [1, 3]]
-    time_per_level = 5.0
-    paths_min = 64
-    for dt in progressbar(deltas):
-        _, elapsed_time_per_path = time_function(produce_cox_ingersoll_ross_paths)(dt, approximations, **params)
-        paths_required = int(time_per_level / elapsed_time_per_path)
-        if paths_required < paths_min:
-            print("More time required for dt={}".format(dt))
-            break
-        exacts, euler_maruyamas, linears, cubics = [[None for i in range(paths_required)] for j in range(4)]
-        for path in range(paths_required):
-            x_euler_maruyama, x_exact, x_linear, x_cubic = produce_cox_ingersoll_ross_paths(dt, approximations, **params)
-            exacts[path] = x_exact
-            euler_maruyamas[path] = x_exact - x_euler_maruyama
-            linears[path] = x_exact - x_linear
-            cubics[path] = x_exact - x_cubic
-        exacts, euler_maruyamas, linears, cubics = [[j ** 2 for j in i] for i in [exacts, euler_maruyamas, linears, cubics]]
-        for name, values in {'exact': exacts, 'euler_maruyama': euler_maruyamas, 'linear': linears, 'cubic': cubics}.items():
-            mean = np.mean(values)
-            std = np.std(values) / (len(values) ** 0.5)
-            results[name][dt] = [mean, std]
+    markers = {**{'exact': 'o', 'euler_maruyama': 'v'}, **{k: next(poly_markers) for k in poly_orders}}
+    for realisation in range(10):
+        results = {k: {} for k in ['exact', 'euler_maruyama'] + list(poly_orders.keys())}
+        time_per_level = 5.0
+        paths_min = 64
+        for dt in progressbar(deltas):
+            _, elapsed_time_per_path = time_function(produce_cox_ingersoll_ross_paths)(dt, approximations, **params)
+            paths_required = int(time_per_level / elapsed_time_per_path)
+            if paths_required < paths_min:
+                print("More time required for dt={}".format(dt))
+                break
+            exacts, euler_maruyamas, linears, cubics = [[None for i in range(paths_required)] for j in range(4)]
+            for path in range(paths_required):
+                x_euler_maruyama, x_exact, x_linear, x_cubic = produce_cox_ingersoll_ross_paths(dt, approximations, **params)
+                exacts[path] = x_exact
+                euler_maruyamas[path] = x_exact - x_euler_maruyama
+                linears[path] = x_exact - x_linear
+                cubics[path] = x_exact - x_cubic
+            exacts, euler_maruyamas, linears, cubics = [[j ** 2 for j in i] for i in [exacts, euler_maruyamas, linears, cubics]]
+            for name, values in {'exact': exacts, 'euler_maruyama': euler_maruyamas, 'linear': linears, 'cubic': cubics}.items():
+                mean = np.mean(values)
+                std = np.std(values) / (len(values) ** 0.5)
+                results[name][dt] = [mean, std]
 
-    plt.clf()
-    for name in results:
-        x, y = zip(*results[name].items())
-        y, y_std = list(zip(*y))
-        y_error = 1 * np.array(y_std)
-        plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[name]))
-    plt.xscale('log', basex=2)
-    plt.yscale('log', basey=2)
-    plt.xticks(x)
-    plt.ylim(2 ** -25, 2 ** 2)
-    plt.yticks([2 ** -i for i in range(0, 30, 5)])
-    plt.xlabel(r'Time increment $\delta$')
-    plt.ylabel('Variance')
-    if savefig:
-        plt.savefig('variance_reduction_cir_process.pdf', format='pdf', bbox_inches='tight', transparent=True)
+        plt.clf()
+        for name in results:
+            x, y = zip(*results[name].items())
+            y, y_std = list(zip(*y))
+            y_error = 1 * np.array(y_std)
+            plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[name]))
+        plt.xscale('log', basex=2)
+        plt.yscale('log', basey=2)
+        plt.xticks(x)
+        plt.ylim(2 ** -25, 2 ** 2)
+        plt.yticks([2 ** -i for i in range(0, 30, 5)])
+        plt.xlabel(r'Time increment $\delta$')
+        plt.ylabel('Variance')
+        if savefig:
+            plt.savefig('variance_reduction_cir_process_{}.pdf'.format(realisation), format='pdf', bbox_inches='tight', transparent=True)
+            with open('variance_reduction_cir_process_{}.json'.format(realisation), "w") as output_file:
+                output_file.write(json.dumps(results, indent=4))
 
 
 def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
@@ -413,24 +434,27 @@ def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
     plt.legend(frameon=False)
     if save_figure:
         plt.savefig('non_central_chi_squared_linear_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
-
+        with open('non_central_chi_squared_linear_approximation.json', "w") as output_file:
+            output_file.write(json.dumps({non_centrality: {'u': u_approx.tolist(), 'exact': ncx2.ppf(u_approx, df=dof, nc=non_centrality).tolist(), 'approximation': ncx2_approx(u_approx, non_centrality=non_centrality).tolist()} for non_centrality in non_centralities}, indent=4))
 
 def print_speed_up_and_efficiencies(variances_reductions, cost_reductions):
     for V, c in zip(variances_reductions, cost_reductions):
-        c = 1.0/c
+        c = 1.0 / c
         C = 1.0 + c
         e = (1.0 + np.sqrt(V * C / c)) ** 2
         s = c * e
-        m = np.sqrt(s/c)
-        M = np.sqrt(s * V /C)
-        print(1.0 / s, 100.0 / e, m, 1.0/M)
+        m = np.sqrt(s / c)
+        M = np.sqrt(s * V / C)
+        print(1.0 / s, 100.0 / e, m, 1.0 / M)
+
 
 def print_speed_up_and_efficiencies_non_central_chi_squared():
     variances_reductions = [2 ** -15, 2 ** -25]
     cost_reductions = [300.0, 300.0]
     print_speed_up_and_efficiencies(variances_reductions, cost_reductions)
 
+
 def print_speed_up_and_efficiencies_gaussian():
-    variances_reductions = [2**-1, 2**-13, 2**-14, 2**-25]
+    variances_reductions = [2 ** -1, 2 ** -13, 2 ** -14, 2 ** -25]
     cost_reductions = [9.0, 6.0, 7.0, 5.0]
     print_speed_up_and_efficiencies(variances_reductions, cost_reductions)
