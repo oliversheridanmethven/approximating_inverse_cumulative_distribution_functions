@@ -1,28 +1,40 @@
-\documentclass[manuscript,review]{acmart}
+\documentclass[9pt,a4paper,english]{extarticle}
 
+\pdfoutput=1
 \let\Bbbk\undefined % Undefines some symbols for amssymb (e.g. so I can use \blacklozenge)
+\usepackage{abstract}
 \usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
 \usepackage[boxed, vlined, linesnumbered, resetcount]{algorithm2e} 
 \usepackage{bm}
+\usepackage{datenumber}
+\usepackage{datetime}
 \usepackage{float}
 \usepackage{listings}
+\usepackage{mathtools}
 \usepackage{multirow}
+\usepackage[numbers, sort&compress]{natbib}
+\usepackage[super]{nth}
 \usepackage{physics}
+\usepackage[scr,scaled=1.1]{rsfso}
 \usepackage{subfigure}
 \usepackage[binary-units=true]{siunitx}
 \usepackage{todonotes}
-
-\usepackage{hyperref} % Should usually be loaded last. 
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage[top=20mm,bottom=20mm,left=20mm, right=20mm]{geometry}
 
 \newfloat{lstfloat}{htbp}{lop} % To put the listings in. 
 \renewcommand{\lstlistingname}{Code} % Rename them as codes. 
 
+\renewcommand{\abstractname}{}    % Clear the abstract's title.
 
 \SetAlCapSty{} % Removes bold in caption for consistency. 
-\SetAlCapSkip{0.5em} % Increase algorithm spacing between box and caption.
-\SetAlCapNameFnt{\small\sffamily}
-\SetAlCapFnt{\small\sffamily}
-\SetAlgoCaptionSeparator{.}
+\SetAlCapSkip{1em} % Increase algorithm spacing between box and caption.
+\SetAlCapNameFnt{}
+\SetAlCapFnt{}
+\SetAlgoCaptionSeparator{:}
 
 % For formatting the C code. 
 \lstdefinestyle{C}{
@@ -33,96 +45,50 @@
     otherkeywords={\#pragma,\_\_fp16},
     frame = single,
     captionpos=b,
+    abovecaptionskip=1em,
 }
 
 
 \DeclareMathOperator*{\argmin}{argmin} % For argmin. 
 
-\citestyle{acmnumeric} % For the numeric citation style. 
+\bibliographystyle{plainnat} % Alphabetical. 
 
-\title{Approximating inverse cumulative distribution functions to produce approximate random variables}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
 
-\author{Michael Giles}
-\email{mike.giles@maths.ox.ac.uk}
+\title{\Huge Approximating inverse cumulative distribution functions to produce approximate random variables}
 
-\author{Oliver Sheridan-Methven}
-\email{oliver.sheridan-methven@hotmail.co.uk}
+\author{
+\href{mailto:mike.giles@maths.ox.ac.uk}{Michael Giles}%
+\thanks{\href{mailto:mike.giles@maths.ox.ac.uk}%
+{\texttt{mike.giles@maths.ox.ac.uk}}} 
+\and 
+\href{mailto:oliver.sheridan-methven@hotmail.co.uk}{Oliver Sheridan-Methven}%
+\thanks{\href{mailto:oliver.sheridan-methven@hotmail.co.uk}%
+{\texttt{oliver.sheridan-methven@hotmail.co.uk}}}
+}
 
-\affiliation{%
-\institution{Mathematical Institute, Oxford University}
-\city{Oxford}
-\country{UK}}
+\date{
+Mathematical Institute, Oxford University, UK\\[1em]
+\datedayname\ \nth{\number\day} \monthname\  \number\year}
+%
+%\keywords{approximations, random variables, inverse cumulative distribution functions, random number generation, the Gaussian distribution, geometric Brownian motion, the Cox-Ingersoll-Ross process, the non central $ \chi^2 $ distribution, multilevel Monte Carlo, the Euler-Maruyama scheme, the Milstein scheme, and high performance computing.}
 
-\keywords{approximations, random variables, inverse cumulative distribution functions, random number generation, the Gaussian distribution, geometric Brownian motion, the Cox-Ingersoll-Ross process, the non central $ \chi^2 $ distribution, multilevel Monte Carlo, the Euler-Maruyama scheme, the Milstein scheme, and high performance computing.}
 
 \begin{document}
 
+\maketitle
+
 \begin{abstract}
 For random variables produced through the inverse transform method, approximate random variables are introduced, which are produced by approximations to a distribution's inverse cumulative distribution function. These approximations are designed to be computationally inexpensive, and much cheaper than exact library functions, and thus highly suitable for use in Monte Carlo simulations. Two approximations are presented for the Gaussian distribution: a piecewise constant on equally spaced intervals, and a piecewise linear using geometrically decaying intervals. The error of the approximations are bounded and the convergence demonstrated, and the computational savings measured for C and C++ implementations. Implementations tailored for Intel and Arm hardwares are inspected, alongside hardware agnostic implementations built using OpenMP. The savings are incorporated into a nested multilevel Monte Carlo framework with the Euler-Maruyama scheme to exploit the speed ups without losing accuracy, offering speed ups by a factor of 5--7. These ideas are empirically extended to the Milstein scheme, and the Cox-Ingersoll-Ross process' non central $ \chi^2 $ distribution, which offer speed ups by a factor of 250 or more.  
+
+\begin{description}
+\item[Keywords:] approximations, random variables, inverse cumulative distribution functions, random number generation, the Gaussian distribution, geometric Brownian motion, the Cox-Ingersoll-Ross process, the non central $ \chi^2 $ distribution, multilevel Monte Carlo, the Euler-Maruyama scheme, the Milstein scheme, and high performance computing.
+\item[MSC subject classification:] 	65C10, 41A10, 65D15, 65C05, 62E17, 65Y20, 60H35, and 65C30.
+\end{description}
 \end{abstract}
 
-% cf. https://dl.acm.org/ccs#
-\begin{CCSXML}
-<ccs2012>
-   <concept>
-       <concept_id>10002950.10003714.10003715</concept_id>
-       <concept_desc>Mathematics of computing~Numerical analysis</concept_desc>
-       <concept_significance>500</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10002950.10003705.10011686</concept_id>
-       <concept_desc>Mathematics of computing~Mathematical software performance</concept_desc>
-       <concept_significance>300</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10002950.10003705.10003708</concept_id>
-       <concept_desc>Mathematics of computing~Statistical software</concept_desc>
-       <concept_significance>500</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10002950.10003714.10003736.10003737</concept_id>
-       <concept_desc>Mathematics of computing~Approximation</concept_desc>
-       <concept_significance>100</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10002950.10003741.10003746</concept_id>
-       <concept_desc>Mathematics of computing~Continuous functions</concept_desc>
-       <concept_significance>100</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10010147.10010169.10010170.10010173</concept_id>
-       <concept_desc>Computing methodologies~Vector / streaming algorithms</concept_desc>
-       <concept_significance>100</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10010147.10010341.10010342.10010345</concept_id>
-       <concept_desc>Computing methodologies~Uncertainty quantification</concept_desc>
-       <concept_significance>300</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10010147.10010341.10010349.10010345</concept_id>
-       <concept_desc>Computing methodologies~Uncertainty quantification</concept_desc>
-       <concept_significance>300</concept_significance>
-       </concept>
-   <concept>
-       <concept_id>10010147.10010341.10010349.10010362</concept_id>
-       <concept_desc>Computing methodologies~Massively parallel and high-performance simulations</concept_desc>
-       <concept_significance>300</concept_significance>
-       </concept>
- </ccs2012>
-\end{CCSXML}
-
-\ccsdesc[500]{Mathematics of computing~Numerical analysis}
-\ccsdesc[300]{Mathematics of computing~Mathematical software performance}
-\ccsdesc[500]{Mathematics of computing~Statistical software}
-\ccsdesc[100]{Mathematics of computing~Approximation}
-\ccsdesc[100]{Mathematics of computing~Continuous functions}
-\ccsdesc[100]{Computing methodologies~Vector / streaming algorithms}
-\ccsdesc[300]{Computing methodologies~Uncertainty quantification}
-\ccsdesc[300]{Computing methodologies~Uncertainty quantification}
-\ccsdesc[300]{Computing methodologies~Massively parallel and high-performance simulations}
-
-\maketitle
 
 \section{Introduction}
 \label{sec:introduction}
@@ -216,7 +182,7 @@ Mathematically it is straightforward motivate a piecewise constant approximation
 
 \caption{The piecewise constant approximation $ \tilde{Z}_k^{L^1} $ from corollary~\ref{cor:piecewise_constant_constructions} with equally spaced intervals, and its error.}
 \label{fig:piecewise_constant_approximation}
-\Description[The piecewise constant approximation is of a reasonable fidelity and its error decreases with more intervals.]{The piecewise constant approximation with 8 intervals fits with a modest fidelity the exact inverse Gaussian cumulative distribution function. We consider the error in various norms, which each show the error decreases as the number of intervals in increased, and this decrease is well described by our analytic bound.}
+%\Description[The piecewise constant approximation is of a reasonable fidelity and its error decreases with more intervals.]{The piecewise constant approximation with 8 intervals fits with a modest fidelity the exact inverse Gaussian cumulative distribution function. We consider the error in various norms, which each show the error decreases as the number of intervals in increased, and this decrease is well described by our analytic bound.}
 \end{figure}
 
 Before presenting theorem~\ref{thm:piecewise_constant_approximation_error}, we can briefly comment on the error seen in figure~\ref{fig:piecewise_constant_gaussian_approximation_error}. Specifically looking at the root mean squared error (RMSE), corresponding to the $ L^2 $ norm, we can see that increasing the number of intervals from 2 to $ 10^3 $ gives a drop of $ 10^2 $ in the RMSE. For our multilevel Monte Carlo applications in section~\ref{sec:multilevel_monte_carlo}, having approximately 1000 intervals gives a very good fidelity, whereas Rademacher random variables have a very low fidelity. Being able to achieve a reasonable fidelity from our approximation ensures that we achieve the largest portion of the possible temporal savings offered from our approximations. 
@@ -318,7 +284,7 @@ The main result from this section will be theorem~\ref{thm:piecewise_linear_appr
 
 \caption{The piecewise linear approximation and its error from theorem~\ref{thm:piecewise_linear_approximation_error} with geometric intervals using $ r = \tfrac{1}{2} $.}
 \label{fig:piecewise_linear_approximation}
-\Description[The piecewise linear approximation is of a good fidelity and its error decreases with more intervals and higher polynomial orders.]{The piecewise linear approximation with 8 intervals fits with a high fidelity the exact inverse Gaussian cumulative distribution function. We consider the root mean square error, which decreases as the number of intervals or polynomial order is increased.}
+%\Description[The piecewise linear approximation is of a good fidelity and its error decreases with more intervals and higher polynomial orders.]{The piecewise linear approximation with 8 intervals fits with a high fidelity the exact inverse Gaussian cumulative distribution function. We consider the root mean square error, which decreases as the number of intervals or polynomial order is increased.}
 \end{figure}
 
 \begin{theorem}
@@ -670,7 +636,7 @@ The variance for the various multilevel terms for different time increments for 
 \caption{The variances from using the Euler-Maruyama and Milstein schemes for a geometric Brownian motion for the functional $ P(X) = X $. The ($ \blacklozenge $)-marker is the two way difference $ \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} $, and the remaining markers ($ \bm{\times} $, \raisebox{-0.1em}{\huge$ \bullet$}, {\large $ \blacktriangledown $}, $ \blacksquare $) are the four way difference $ \hat{P}^{\mathrm{f}} - \hat{P}^{\mathrm{c}} - \tilde{P}^{\mathrm{f}} + \tilde{P}^{\mathrm{c}} $ for various approximations. ($ \bm{\times} $) Rademacher. (\raisebox{-0.1em}{\huge$ \bullet$}) Piecewise constant. ({\large $ \blacktriangledown $}) Piecewise linear. ($ \blacksquare $) Piecewise cubic.}
 \label{fig:variance_reduction}
 
-\Description[The multilevel variance of the Euler-Maruyama and Milstein schemes.]{The variance of the underlying process and the multilevel corrections decreases with finer discretisation with the anticipated strong convergence orders. The piecewise constant and linear functions have a consistently smaller variance than the underlying process, typically being about 5 orders of magnitude less, and the piecewise cubic a further 5 less. The approximation using Rademacher random variables gives almost no appreciable reduction in variance.}
+%\Description[The multilevel variance of the Euler-Maruyama and Milstein schemes.]{The variance of the underlying process and the multilevel corrections decreases with finer discretisation with the anticipated strong convergence orders. The piecewise constant and linear functions have a consistently smaller variance than the underlying process, typically being about 5 orders of magnitude less, and the piecewise cubic a further 5 less. The approximation using Rademacher random variables gives almost no appreciable reduction in variance.}
 \end{figure}
 
 We can see from figure~\ref{fig:variance_reduction} that the two way differences exhibit the usual strong convergence order $ \tfrac{1}{2} $ and 1 of the Euler-Maruyama and Milstein schemes, as expected \citep{kloeden1999numerical}. Furthermore, as the functional is differentiable and Lipschitz continuous, this strong convergence rate is preserved for the four way differences \citep{giles2020approximate,sheridan2020nested}. \citeauthor{giles2020approximate} \citep{giles2020approximate,sheridan2020nested} derive this result for the Euler-Maruyama scheme, but that it is also observed for the Milstein scheme remains open to analysis. Aside from this, the key point to note from figure~\ref{fig:variance_reduction} is the substantial drop in the variance between the two way and four way variances using our approximations. This drop in the variance is large for the piecewise constant and linear approximations, and huge for the piecewise cubic approximation. The approximation using Rademacher random variables has a near imperceivable drop in variance. 
@@ -852,7 +818,7 @@ $ \tilde{C}^{-1}_{\nu}(\cdot;\lambda) \coloneqq \lambda + \nu + 2 \sqrt{\lambda 
 \caption{The non central $ \chi^2 $ distribution from the CIR process, and the variance of path simulations and possible multilevel corrections.}
 \label{fig:cir_process}
 
-\Description[Piecewise linear approximation to the non central chi-squared distribution, and the multilevel variances.]{The piecewise linear approximation to the non central chi-squared distribution with 8 intervals achieved a very good fidelity for a range of non centrality parameter values. The variance of the underlying process is a constant which is independent of the discretisation, and so are the variances of the multilevel corrections for piecewise linear and cubic approximations. The variance of a multilevel Euler-Maruyama correction decreases with a strong order of convergence of 0.5. Both approximations have much lower variances than the Euler-Maruyama approximation, with the linear have a variance reduction by approximately 5 orders of, and the piecewise cubic a further 3.}
+%\Description[Piecewise linear approximation to the non central chi-squared distribution, and the multilevel variances.]{The piecewise linear approximation to the non central chi-squared distribution with 8 intervals achieved a very good fidelity for a range of non centrality parameter values. The variance of the underlying process is a constant which is independent of the discretisation, and so are the variances of the multilevel corrections for piecewise linear and cubic approximations. The variance of a multilevel Euler-Maruyama correction decreases with a strong order of convergence of 0.5. Both approximations have much lower variances than the Euler-Maruyama approximation, with the linear have a variance reduction by approximately 5 orders of, and the piecewise cubic a further 3.}
 \end{figure}
 
 There are only two difficulties with constructing such an approximation. The first is that the distribution is no longer rotationally symmetric, which is easily remedied by constructing two approximations: one for $ (0, \tfrac{1}{2}] $ and a second for $ (\tfrac{1}{2}, 1) $. The second difficulty is the parametrisation. Noting that $ y \in (0, 1) $ is dependent on the non centrality parameter, we construct several approximations for various values of $ y $ (knowing the limiting cases) and linearly interpolate. A good choice of knot points are equally spaced values of $ \sqrt{y} $, where figure~\ref{fig:non_central_chi_squared_linear_approximation} uses 16 interpolation values.
@@ -903,7 +869,7 @@ All of the code to produce these figures, tables, and approximations is freely a
 
 We would like to acknowledge and thank those who have financially sponsored this work. This includes the Engineering and Physical Sciences Research Council (EPSRC) and Oxford University's centre for doctoral training in Industrially Focused Mathematical Modelling (InFoMM), with the EP/L015803/1 funding grant. Furthermore, this research stems from a PhD project \citep{sheridan2020nested} which was funded by Arm and NAG. Additionally, funding was also provided by the Inference, Computation and Numerics for Insights into Cities (ICONIC) project, and the programme grant EP/P020720/1. Lastly, Mansfield College Oxford also contributed funds.  
 
-\bibliographystyle{ACM-Reference-Format}
+
 \bibliography{references}
 
 \end{document}
