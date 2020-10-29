@@ -41,12 +41,19 @@ mp.dps = 50
 norm_inv = norm.ppf
 
 
-def plot_piecewise_constant_approximation(savefig=False):
-    u = np.linspace(0, 1, 1000)[1:-1]
-    norm_inv_approx = construct_piecewise_constant_approximation(norm.ppf, 8)
+def plot_piecewise_constant_approximation(savefig=False, plot_from_json=True):
+    if plot_from_json:
+        with open('piecewise_constant_gaussian_approximation.json', "r") as input_file:
+            results = json.load(input_file)
+        u, exact, approximation = results['uniforms'], results['exact'], results['approximate']
+    else:
+        u = np.linspace(0, 1, 1000)[1:-1]
+        norm_inv_approx = construct_piecewise_constant_approximation(norm.ppf, 8)
+        exact = norm_inv(u)
+        approximation = norm_inv_approx(u)
     plt.clf()
-    plt.plot(u, norm_inv(u), 'k--', label=r'$\Phi^{-1}(x)$')
-    plt.plot(u, norm_inv_approx(u), 'k,', label=r'__nolegend__')
+    plt.plot(u, exact, 'k--', label=r'$\Phi^{-1}(x)$')
+    plt.plot(u, approximation, 'k,', label=r'__nolegend__')
     plt.plot([], [], 'k-', label=r'$Q(x)$')
     plt.xlabel(r"$x$")
     plt.xticks([0, 1])
@@ -55,49 +62,68 @@ def plot_piecewise_constant_approximation(savefig=False):
     plt.legend(frameon=False)
     if savefig:
         plt.savefig('piecewise_constant_gaussian_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
-        with open('piecewise_constant_gaussian_approximation.json', "w") as output_file:
-            output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
+        if not plot_from_json:
+            with open('piecewise_constant_gaussian_approximation.json', "w") as output_file:
+                output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
 
 
-def plot_piecewise_constant_error(savefig=False):
-    res = {1 << i: {} for i in range(1, 4)}
-    for n in [1 << i for i in range(11)]:
-        norm_inv_approx = construct_piecewise_constant_approximation(norm.ppf, n)
-        discontinuities = np.linspace(0, 1, n + 1)
-        for p in res:
-            p_norm = integrate(lambda u: (norm_inv(u) - norm_inv_approx(u)) ** p, 0, 1, points=discontinuities, limit=50 + 10 * n)[0] ** (1.0 / p)
-            res[p][n] = p_norm
+def plot_piecewise_constant_error(savefig=False, plot_from_json=True):
+    if plot_from_json:
+        with open('piecewise_constant_gaussian_approximation_error.json', "r") as input_file:
+            results = json.load(input_file)
+        for p in results:
+            for data_type in ['data', 'bound']:
+                results[p][data_type] = {float(k): float(v) for k, v in results[p][data_type].items()}
+    else:
+        results = {1 << i: {'data': {}, 'bound': {}} for i in range(1, 4)}
+        for n in [1 << i for i in range(11)]:
+            norm_inv_approx = construct_piecewise_constant_approximation(norm.ppf, n)
+            discontinuities = np.linspace(0, 1, n + 1)
+            for p in results:
+                p_norm = integrate(lambda u: (norm_inv(u) - norm_inv_approx(u)) ** p, 0, 1, points=discontinuities, limit=50 + 10 * n)[0] ** (1.0 / p)
+                results[p]['data'][n] = p_norm
+        for p in results:
+            n, p_norm = zip(*results[p]['data'].items())
+            q = np.linspace(2, np.log2(n[-1]), 100)  # For the analytic bound from Giles
+            x = 2.0 ** q
+            y = 2.0 ** (-q / p) * q ** -0.5
+            y = y / y[-1] * p_norm[-1]  # Rescaled
+            results[p]['bound'] = {k: v for k, v in zip(x, y)}
 
     plt.clf()
     markers = (i for i in {'o', 's', 'v'})
-    for p in res:
-        n, p_norm = zip(*res[p].items())
+    for p in results:
+        n, p_norm = zip(*results[p]['data'].items())
+        n_bound, p_bound = zip(*results[p]['bound'].items())
         marker = next(markers)
         plt.plot(n, p_norm, 'k{}'.format(marker), label=r'$p = {}$'.format(p))
         plt.plot(n, p_norm, 'k:', label=r'__nolegend__')
-        q = np.linspace(2, np.log2(n[-1]))  # For the analytic bound from Giles
-        x = 2.0 ** q
-        y = 2.0 ** (-q / p) * q ** -0.5
-        y = y / y[-1] * p_norm[-1]  # Rescaled
-        plt.plot(x, y, 'k--', label='__nolegend__')
+        plt.plot(n_bound, p_bound, 'k--', label='__nolegend__')
     plt.plot([], [], 'k--', label=r'$O(2^{-q/p} q^{-1/2})$')
     plt.yscale('log')
     plt.xscale('log')
-    plt.ylabel(r'$\norm{Z - \tilde{Z}}_p$')
+    plt.ylabel(r'$\lVert Z - \tilde{Z}\rVert_p$')
     plt.xlabel('Intervals')
     plt.legend(frameon=False, handlelength=1, borderaxespad=0)
     if savefig:
         plt.savefig('piecewise_constant_gaussian_approximation_error.pdf', format='pdf', bbox_inches='tight', transparent=True)
-        with open('piecewise_constant_gaussian_approximation_error.json', "w") as output_file:
-            output_file.write(json.dumps(res, indent=4))
+        if not plot_from_json:
+            with open('piecewise_constant_gaussian_approximation_error.json', "w") as output_file:
+                output_file.write(json.dumps(results, indent=4))
 
 
-def plot_piecewise_linear_gaussian_approximation(savefig=False):
-    u = np.linspace(0, 1, 1000)[1:-1]
-    norm_inv_approx = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals=5, polynomial_order=1)
+def plot_piecewise_linear_gaussian_approximation(savefig=False, plot_from_json=True):
+    if plot_from_json:
+        with open('piecewise_linear_gaussian_approximation.json', "r") as input_file:
+            results = json.load(input_file)
+        u, exact, approximate = results['uniforms'], results['exact'], results['approximate']
+    else:
+        u = np.linspace(0, 1, 1000)[1:-1]
+        norm_inv_approx = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals=5, polynomial_order=1)
+        exact, approximate = norm_inv(u), norm_inv_approx(u)
     plt.clf()
-    plt.plot(u, norm_inv(u), 'k--', label=r'$\Phi^{-1}(x)$')
-    plt.plot(u, norm_inv_approx(u), 'k,', label=r'__nolegend__')
+    plt.plot(u, exact, 'k--', label=r'$\Phi^{-1}(x)$')
+    plt.plot(u, approximate, 'k,', label=r'__nolegend__')
     plt.plot([], [], 'k-', label=r'$D(x)$')
     plt.xlabel(r"$x$")
     plt.xticks([0, 1])
@@ -106,43 +132,53 @@ def plot_piecewise_linear_gaussian_approximation(savefig=False):
     plt.legend(frameon=False)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
-        with open('piecewise_linear_gaussian_approximation.json', "w") as output_file:
-            output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
+        if not plot_from_json:
+            with open('piecewise_linear_gaussian_approximation.json', "w") as output_file:
+                output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
 
 
-def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False):
-    cdf = mp.ncdf
-    pdf = mp.npdf
-    sqrt = mp.sqrt
-    pi = mp.pi
-    fabs = mp.fabs
-    inf = mp.inf
-    log10 = mp.log10
-    log = mp.log
-    delta = np.concatenate([np.logspace(-6, -1, 25), np.logspace(-1, np.log10(0.39894), 25)])
-    z = norm.ppf(delta)
-    p = 2
-    integral = []
-    for z_d in z:
-        # Getting a numeric estimate.
-        a = 0
-        b = d = cdf(z_d)
-        # Evaluating the analytic expression.
-        b_analytic = 6.0 / (b - a) ** 3 * (cdf(sqrt(2) * z_d) / sqrt(pi) - (a + b) * pdf(z_d))
-        a_analytic = 2.0 * pdf(z_d) / d - 3.0 * cdf(sqrt(2) * z_d) / (sqrt(pi) * d ** 2)
-        # Evaluating the error via the exact integral. (The integrals need to be moderately well scaled).
-        v_1 = fabs(z_d - a_analytic - b_analytic * cdf(z_d)) ** p * pdf(z_d)
-        v_2 = v_1 * mp.quad(lambda z: v_1 ** -1 * fabs(z - a_analytic - b_analytic * cdf(z)) ** p * pdf(z), [-inf, z_d])
-        e_integral = v_2
-        integral.append(e_integral)
-    x = delta
-    y_integral = integral
-    y1 = x
-    y2 = x * np.log(1.0 / (np.sqrt(2.0 * np.pi) * x)) ** (-p / 2.0)
+def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False, plot_from_json=True):
+    if plot_from_json:
+        with open('piecewise_linear_gaussian_approximation_error_singular_interval.json', "r") as input_file:
+            results = json.load(input_file)
+        rk_1, y_integral, O_bound, o_bound = results['r^{K-1}'], results['integral'], results['O_bound'], results['o_bound']
+    else:
+        cdf = mp.ncdf
+        pdf = mp.npdf
+        sqrt = mp.sqrt
+        pi = mp.pi
+        fabs = mp.fabs
+        inf = mp.inf
+        log10 = mp.log10
+        log = mp.log
+        delta = np.concatenate([np.logspace(-6, -1, 25), np.logspace(-1, np.log10(0.39894), 25)])
+        z = norm.ppf(delta)
+        p = 2
+        integral = []
+        for z_d in z:
+            # Getting a numeric estimate.
+            a = 0
+            b = d = cdf(z_d)
+            # Evaluating the analytic expression.
+            b_analytic = 6.0 / (b - a) ** 3 * (cdf(sqrt(2) * z_d) / sqrt(pi) - (a + b) * pdf(z_d))
+            a_analytic = 2.0 * pdf(z_d) / d - 3.0 * cdf(sqrt(2) * z_d) / (sqrt(pi) * d ** 2)
+            # Evaluating the error via the exact integral. (The integrals need to be moderately well scaled).
+            v_1 = fabs(z_d - a_analytic - b_analytic * cdf(z_d)) ** p * pdf(z_d)
+            v_2 = v_1 * mp.quad(lambda z: v_1 ** -1 * fabs(z - a_analytic - b_analytic * cdf(z)) ** p * pdf(z), [-inf, z_d])
+            e_integral = v_2
+            integral.append(e_integral)
+        x = delta
+        y_integral = integral
+        y1 = x
+        y2 = x * np.log(1.0 / (np.sqrt(2.0 * np.pi) * x)) ** (-p / 2.0)
+        rk_1 = 2 * x
+        O_bound = y2 / [y2[0] / y_integral[0]]
+        o_bound = y1 / [y1[0] / y_integral[0]]
+
     plt.clf()
-    plt.plot(2 * x, y_integral, 'k-', label='__nolegend__')
-    plt.plot(2 * x, y2 / [y2[0] / y_integral[0]], 'k-', dashes=(10, 10), label=r'$O(r^{K-1} {\log}^{-p/2}(r^{1-K}\sqrt{2/\pi}))$')
-    plt.plot(2 * x, y1 / [y1[0] / y_integral[0]], 'k-', dashes=(3, 3), label=r'$o(r^{K-1})$')
+    plt.plot(rk_1, y_integral, 'k-', label='__nolegend__')
+    plt.plot(rk_1, O_bound, 'k-', dashes=(10, 10), label=r'$O(r^{K-1} {\log}^{-p/2}(r^{1-K}\sqrt{2/\pi}))$')
+    plt.plot(rk_1, o_bound, 'k-', dashes=(3, 3), label=r'$o(r^{K-1})$')
     plt.xlabel(r'$r^{K-1}$')
     plt.ylabel(r'$\int_{I_K} \lvert \Phi^{-1}(u) - D(u)\rvert^p \dd{u}$')
     plt.xscale('log')
@@ -152,22 +188,30 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     plt.ylim(1e-8, 1e-1)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation_error_singular_interval.pdf', format='pdf', bbox_inches='tight', transparent=True)
-        with open('piecewise_linear_gaussian_approximation_error_singular_interval.json', "w") as output_file:
-            output_file.write(json.dumps({k: [float(i) for i in v] for k, v in {'r^{K-1}': 2*x, 'integral': y_integral, 'O-bound': y2 / [y2[0] / y_integral[0]], 'o-bound': y1 / [y1[0] / y_integral[0]]}.items()}, indent=4))
+        if not plot_from_json:
+            with open('piecewise_linear_gaussian_approximation_error_singular_interval.json', "w") as output_file:
+                output_file.write(json.dumps({k: [float(i) for i in v] for k, v in {'r^{K-1}': rk_1, 'integral': y_integral, 'O_bound': O_bound, 'o_bound': o_bound}.items()}, indent=4))
 
 
+def plot_piecewise_linear_gaussian_approximation_error(savefig=False, plot_from_json=True):
+    if plot_from_json:
+        with open('piecewise_linear_gaussian_approximation_error.json', "r") as input_file:
+            results = json.load(input_file)
+        results = {k: {int(x): float(y) for x, y in v.items()} for k, v in results.items()}
+    else:
+        polynomial_orders = range(6)
+        interval_sizes = [2, 4, 8, 16]
+        results = {s: {} for s in interval_sizes}
+        for n_intervals in results:
+            for polynomial_order in polynomial_orders:
+                approximate_inverse_gaussian_cdf = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals + 1, polynomial_order)  # +1 as we have the 0 interval which is measure 0.
+                discontinuities = [0.5 ** (i + 2) for i in range(n_intervals)]  # Makes the numerical integration involved in the RMSE easier.
+                rmse = integrate(lambda u: 2.0 * (norm.ppf(u) - approximate_inverse_gaussian_cdf(u)) ** 2, 0, 0.5, points=discontinuities)[0] ** 0.5
+                results[n_intervals][polynomial_order] = rmse
 
-def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False):
-    polynomial_orders = range(6)
-    interval_sizes = [2, 4, 8, 16]
+    polynomial_orders = sorted(list(results.values())[0].keys())
     plt.clf()
-    results = {s: {} for s in interval_sizes}
     for n_intervals in results:
-        for polynomial_order in polynomial_orders:
-            approximate_inverse_gaussian_cdf = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals + 1, polynomial_order)  # +1 as we have the 0 interval which is measure 0.
-            discontinuities = [0.5 ** (i + 2) for i in range(n_intervals)]  # Makes the numerical integration involved in the RMSE easier.
-            rmse = integrate(lambda u: 2.0 * (norm.ppf(u) - approximate_inverse_gaussian_cdf(u)) ** 2, 0, 0.5, points=discontinuities)[0] ** 0.5
-            results[n_intervals][polynomial_order] = rmse
         poly_orders, rmse = zip(*results[n_intervals].items())
         plt.plot(poly_orders, rmse, 'ko:', label='__nolengend__')
         plt.plot([], [], 'ko', label=n_intervals)
@@ -180,9 +224,9 @@ def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig
     plt.xticks(polynomial_orders)
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation_error.pdf', format='pdf', bbox_inches='tight', transparent=True)
-        with open('piecewise_linear_gaussian_approximation_error.json', "w") as output_file:
-            output_file.write(json.dumps(results, indent=4))
-
+        if not plot_from_json:
+            with open('piecewise_linear_gaussian_approximation_error.json', "w") as output_file:
+                output_file.write(json.dumps(results, indent=4))
 
 
 def produce_geometric_brownian_motion_paths(dt, method=None, approx=None):
@@ -251,16 +295,23 @@ def produce_geometric_brownian_motion_paths(dt, method=None, approx=None):
     return [x_fine_exact, x_coarse_exact, x_fine_approx, x_coarse_approx]
 
 
-def plot_variance_reduction(savefig=False):
-    deltas = [2.0 ** -i for i in range(1, 7)]
-    inverse_norm = norm.ppf
-    piecewise_constant = construct_piecewise_constant_approximation(inverse_norm, n_intervals=1024)
-    piecewise_linear = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=1)
-    piecewise_cubic = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=3)
-    approximations = {'constant': piecewise_constant, 'linear': piecewise_linear, 'cubic': piecewise_cubic, 'rademacher': rademacher_approximation}
-    markers = {'original': 'd', 'constant': 'o', 'linear': 'v', 'cubic': 's', 'rademacher': 'x'}
-    for realisation in range(10):
-        results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in ['euler_maruyama', 'milstein']}  # Store the values of delta and the associated data.
+def plot_variance_reduction_geometric_brownian_motion(savefig=False, plot_from_json=True):
+    methods = ['euler_maruyama', 'milstein']
+    if plot_from_json:
+        results = {}
+        for method in methods:
+            with open('variance_reduction_{}_scheme.json'.format(method), "r") as input_file:
+                results[method] = json.load(input_file)
+            results[method] = {k: {float(x): y for x, y in v.items()} for k, v in results[method].items()}
+    else:
+        deltas = [2.0 ** -i for i in range(1, 7)]
+        inverse_norm = norm.ppf
+        piecewise_constant = construct_piecewise_constant_approximation(inverse_norm, n_intervals=1024)
+        piecewise_linear = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=1)
+        piecewise_cubic = construct_symmetric_piecewise_polynomial_approximation(inverse_norm, n_intervals=16, polynomial_order=3)
+        approximations = {'constant': piecewise_constant, 'linear': piecewise_linear, 'cubic': piecewise_cubic, 'rademacher': rademacher_approximation}
+
+        results = {method: {term: {} for term in ['original'] + list(approximations.keys())} for method in methods}  # Store the values of delta and the associated data.
         time_per_level = 2.0
         paths_min = 64
         for method in results:
@@ -284,24 +335,27 @@ def plot_variance_reduction(savefig=False):
                         [mean, std] = [float(i) for i in [mean, std]]
                         results[method][name][dt] = [mean, std]
 
-        for method in results:
-            plt.clf()
-            for approx_name in results[method]:
-                x, y = zip(*results[method][approx_name].items())
-                y, y_std = list(zip(*y))
-                y_error = 1 * np.array(y_std)
-                plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[approx_name]))
-            plt.xscale('log', basex=2)
-            plt.yscale('log', basey=2)
-            plt.xlabel(r'Fine time increment $\delta^{\mathrm{f}}$')
-            plt.ylabel('Variance')
-            y_min_base_2 = 50
-            plt.ylim(2 ** -y_min_base_2, 2 ** -10)
-            plt.yticks([2 ** -i for i in range(10, y_min_base_2 + 1, 10)])
-            plt.xticks(deltas)
-            if savefig:
-                plt.savefig('variance_reduction_{}_scheme_{}.pdf'.format(method, realisation), format='pdf', bbox_inches='tight', transparent=True)
-                with open('variance_reduction_{}_scheme_{}.json'.format(method, realisation), "w") as output_file:
+    markers = {'original': 'd', 'constant': 'o', 'linear': 'v', 'cubic': 's', 'rademacher': 'x'}
+    deltas = list(list(list(results.items())[0][1].items())[0][1].keys())
+    for method in results:
+        plt.clf()
+        for approx_name in results[method]:
+            x, y = zip(*results[method][approx_name].items())
+            y, y_std = list(zip(*y))
+            y_error = 1 * np.array(y_std)
+            plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[approx_name]))
+        plt.xscale('log', basex=2)
+        plt.yscale('log', basey=2)
+        plt.xlabel(r'Fine time increment $\delta^{\mathrm{f}}$')
+        plt.ylabel('Variance')
+        y_min_base_2 = 50
+        plt.ylim(2 ** -y_min_base_2, 2 ** -10)
+        plt.yticks([2 ** -i for i in range(10, y_min_base_2 + 1, 10)])
+        plt.xticks(deltas)
+        if savefig:
+            plt.savefig('variance_reduction_{}_scheme.pdf'.format(method), format='pdf', bbox_inches='tight', transparent=True)
+            if not plot_from_json:
+                with open('variance_reduction_{}_scheme.json'.format(method), "w") as output_file:
                     output_file.write(json.dumps(results[method], indent=4))
 
 
@@ -365,15 +419,20 @@ def produce_cox_ingersoll_ross_paths(dt, approximations=None, **kwargs):
     return [x_euler_maruyama, x_exact, *x_approximations]
 
 
-def plot_variance_reduction_cir_process(savefig=False):
-    deltas = [0.5 ** i for i in range(8)]
+def plot_variance_reduction_cir_process(savefig=False, plot_from_json=True):
     poly_orders = {'linear': 1, 'cubic': 3}
     poly_markers = (i for i in ['s', 'd'])
-    params = {'kappa': 0.5, 'theta': 1.0, 'sigma': 1.0}
-    nu = 4.0 * params['kappa'] * params['theta'] / (params['sigma'] ** 2)
-    approximations = [construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof=nu, polynomial_order=poly_order) for poly_order in [1, 3]]
     markers = {**{'exact': 'o', 'euler_maruyama': 'v'}, **{k: next(poly_markers) for k in poly_orders}}
-    for realisation in range(10):
+    if plot_from_json:
+        with open('variance_reduction_cir_process.json', "r") as input_file:
+            results = json.load(input_file)
+        results = {k: {float(x): y for x, y in v.items()} for k, v in results.items()}
+    else:
+        deltas = [0.5 ** i for i in range(8)]
+        params = {'kappa': 0.5, 'theta': 1.0, 'sigma': 1.0}
+        nu = 4.0 * params['kappa'] * params['theta'] / (params['sigma'] ** 2)
+        approximations = [construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof=nu, polynomial_order=poly_order) for poly_order in [1, 3]]
+
         results = {k: {} for k in ['exact', 'euler_maruyama'] + list(poly_orders.keys())}
         time_per_level = 5.0
         paths_min = 64
@@ -396,35 +455,48 @@ def plot_variance_reduction_cir_process(savefig=False):
                 std = np.std(values) / (len(values) ** 0.5)
                 results[name][dt] = [mean, std]
 
-        plt.clf()
-        for name in results:
-            x, y = zip(*results[name].items())
-            y, y_std = list(zip(*y))
-            y_error = 1 * np.array(y_std)
-            plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[name]))
-        plt.xscale('log', basex=2)
-        plt.yscale('log', basey=2)
-        plt.xticks(x)
-        plt.ylim(2 ** -25, 2 ** 2)
-        plt.yticks([2 ** -i for i in range(0, 30, 5)])
-        plt.xlabel(r'Time increment $\delta$')
-        plt.ylabel('Variance')
-        if savefig:
-            plt.savefig('variance_reduction_cir_process_{}.pdf'.format(realisation), format='pdf', bbox_inches='tight', transparent=True)
-            with open('variance_reduction_cir_process_{}.json'.format(realisation), "w") as output_file:
+    plt.clf()
+    for name in results:
+        x, y = zip(*results[name].items())
+        y, y_std = list(zip(*y))
+        y_error = 1 * np.array(y_std)
+        plt.errorbar(x, y, y_error, None, 'k{}:'.format(markers[name]))
+    plt.xscale('log', basex=2)
+    plt.yscale('log', basey=2)
+    plt.xticks(x)
+    plt.ylim(2 ** -25, 2 ** 2)
+    plt.yticks([2 ** -i for i in range(0, 30, 5)])
+    plt.xlabel(r'Time increment $\delta$')
+    plt.ylabel('Variance')
+    if savefig:
+        plt.savefig('variance_reduction_cir_process.pdf', format='pdf', bbox_inches='tight', transparent=True)
+        if not plot_from_json:
+            with open('variance_reduction_cir_process.json', "w") as output_file:
                 output_file.write(json.dumps(results, indent=4))
 
 
-def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
-    dof = 1.0
-    ncx2_approx = construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof, n_intervals=4 + 1)
-    u = np.linspace(0.0, 1.0, 100000)[:-1]  # Excluding the end points.
-    u_approx = np.linspace(0.0, 1.0, 1000)[:-1]
-    non_centralities = [1.0, 10.0, 20.0]
+def plot_non_central_chi_squared_polynomial_approximation(savefig=False, plot_from_json=True):
+    if plot_from_json:
+        with open('non_central_chi_squared_linear_approximation.json', "r") as input_file:
+            results = json.load(input_file)
+        results = {k: {x: {float(u): w for u, w in y.items()} for x, y in v.items()} for k, v in results.items()}
+    else:
+        dof = 1.0
+        ncx2_approx = construct_inverse_non_central_chi_squared_interpolated_polynomial_approximation(dof, n_intervals=4 + 1)
+        u = np.concatenate([np.linspace(0.0, 1.0, 1000)[:-1], np.logspace(-10, -1, 100), 1.0 - np.logspace(-10, -1, 100)])
+        u.sort()
+        non_centralities = [1.0, 10.0, 20.0]
+        results = {non_centrality: {} for non_centrality in non_centralities}
+        for non_centrality in results:
+            exact, approximate = ncx2.ppf(u, df=dof, nc=non_centrality), ncx2_approx(u, non_centrality=non_centrality)
+            results[non_centrality]['exact'] = {x: y for x, y in zip(u, exact)}
+            results[non_centrality]['approximate'] = {x: y for x, y in zip(u, approximate)}
+
     plt.clf()
-    for non_centrality in non_centralities:
-        plt.plot(u, ncx2.ppf(u, df=dof, nc=non_centrality), 'k--')
-        plt.plot(u_approx, ncx2_approx(u_approx, non_centrality=non_centrality), 'k,')
+    for non_centrality in results:
+        exact, approximate = results[non_centrality]['exact'], results[non_centrality]['approximate']
+        plt.plot(*zip(*exact.items()), 'k--')
+        plt.plot(*zip(*approximate.items()), 'k,')
     plt.plot([], [], 'k--', label=r'$C^{-1}_{\nu}(x;\lambda)$')
     plt.plot([], [], 'k-', label=r'$\tilde{C}^{-1}_{\nu}(x;\lambda)$')
     plt.ylim(0, 50)
@@ -432,10 +504,12 @@ def plot_non_central_chi_squared_polynomial_approximation(save_figure=False):
     plt.xticks([0, 1])
     plt.xlabel(r'$x$')
     plt.legend(frameon=False)
-    if save_figure:
+    if savefig:
         plt.savefig('non_central_chi_squared_linear_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
-        with open('non_central_chi_squared_linear_approximation.json', "w") as output_file:
-            output_file.write(json.dumps({non_centrality: {'u': u_approx.tolist(), 'exact': ncx2.ppf(u_approx, df=dof, nc=non_centrality).tolist(), 'approximation': ncx2_approx(u_approx, non_centrality=non_centrality).tolist()} for non_centrality in non_centralities}, indent=4))
+        if not plot_from_json:
+            with open('non_central_chi_squared_linear_approximation.json', "w") as output_file:
+                output_file.write(json.dumps(results, indent=4))
+
 
 def print_speed_up_and_efficiencies(variances_reductions, cost_reductions):
     for V, c in zip(variances_reductions, cost_reductions):
@@ -458,3 +532,15 @@ def print_speed_up_and_efficiencies_gaussian():
     variances_reductions = [2 ** -1, 2 ** -13, 2 ** -14, 2 ** -25]
     cost_reductions = [9.0, 6.0, 7.0, 5.0]
     print_speed_up_and_efficiencies(variances_reductions, cost_reductions)
+
+
+if __name__ == '__main__':
+    plot_params = dict(savefig=True, plot_from_json=True)
+    plot_piecewise_constant_approximation(**plot_params)
+    plot_piecewise_constant_error(**plot_params)
+    plot_piecewise_linear_gaussian_approximation(**plot_params)
+    plot_piecewise_linear_gaussian_approximation_error_singular_interval(**plot_params)
+    plot_piecewise_linear_gaussian_approximation_error(**plot_params)
+    plot_variance_reduction_geometric_brownian_motion(**plot_params)
+    plot_variance_reduction_cir_process(**plot_params)
+    plot_non_central_chi_squared_polynomial_approximation(**plot_params)

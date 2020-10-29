@@ -11,7 +11,6 @@ Description:
 import matplotlib as mpl
 rc_fonts = {
     "font.family": "serif",
-    "font.size": 9,
     'figure.figsize': (2.8, 2),
     'lines.linewidth': 0.5,
     'axes.linewidth': 0.5,
@@ -22,6 +21,11 @@ rc_fonts = {
     'lines.markersize': 3,
     "text.usetex": True,
     'text.latex.preview': True,
+
+}
+# For ACM
+rc_fonts_extras = {
+    "font.size": 9,
     'text.latex.preamble': [
         r"""
         \usepackage{amsmath,amssymb,bbm,bm,physics}
@@ -29,6 +33,16 @@ rc_fonts = {
         \usepackage[libertine]{newtxmath}
         """],
 }
+# # For arXiv
+# rc_fonts_extras = {
+#     "font.size": 9,
+#     'text.latex.preamble': [
+#         r"""
+#         \usepackage{amsmath,amssymb,bbm,bm,physics}
+#         """],
+#     "font.serif": "computer modern roman",
+# }
+rc_fonts = {**rc_fonts, **rc_fonts_extras}
 mpl.rcParams.update(rc_fonts)
 import matplotlib.pylab as plt
 plt.ion()
