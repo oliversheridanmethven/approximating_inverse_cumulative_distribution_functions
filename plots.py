@@ -137,62 +137,6 @@ def plot_piecewise_linear_gaussian_approximation(savefig=False, plot_from_json=T
                 output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
 
 
-def plot_piecewise_linear_gaussian_approximation_error_singular_interval(savefig=False, plot_from_json=True):
-    if plot_from_json:
-        with open('piecewise_linear_gaussian_approximation_error_singular_interval.json', "r") as input_file:
-            results = json.load(input_file)
-        rk_1, y_integral, O_bound, o_bound = results['r^{K-1}'], results['integral'], results['O_bound'], results['o_bound']
-    else:
-        cdf = mp.ncdf
-        pdf = mp.npdf
-        sqrt = mp.sqrt
-        pi = mp.pi
-        fabs = mp.fabs
-        inf = mp.inf
-        log10 = mp.log10
-        log = mp.log
-        delta = np.concatenate([np.logspace(-6, -1, 25), np.logspace(-1, np.log10(0.39894), 25)])
-        z = norm.ppf(delta)
-        p = 2
-        integral = []
-        for z_d in z:
-            # Getting a numeric estimate.
-            a = 0
-            b = d = cdf(z_d)
-            # Evaluating the analytic expression.
-            b_analytic = 6.0 / (b - a) ** 3 * (cdf(sqrt(2) * z_d) / sqrt(pi) - (a + b) * pdf(z_d))
-            a_analytic = 2.0 * pdf(z_d) / d - 3.0 * cdf(sqrt(2) * z_d) / (sqrt(pi) * d ** 2)
-            # Evaluating the error via the exact integral. (The integrals need to be moderately well scaled).
-            v_1 = fabs(z_d - a_analytic - b_analytic * cdf(z_d)) ** p * pdf(z_d)
-            v_2 = v_1 * mp.quad(lambda z: v_1 ** -1 * fabs(z - a_analytic - b_analytic * cdf(z)) ** p * pdf(z), [-inf, z_d])
-            e_integral = v_2
-            integral.append(e_integral)
-        x = delta
-        y_integral = integral
-        y1 = x
-        y2 = x * np.log(1.0 / (np.sqrt(2.0 * np.pi) * x)) ** (-p / 2.0)
-        rk_1 = 2 * x
-        O_bound = y2 / [y2[0] / y_integral[0]]
-        o_bound = y1 / [y1[0] / y_integral[0]]
-
-    plt.clf()
-    plt.plot(rk_1, y_integral, 'k-', label='__nolegend__')
-    plt.plot(rk_1, O_bound, 'k-', dashes=(10, 10), label=r'$O(r^{K-1} {\log}^{-p/2}(r^{1-K}\sqrt{2/\pi}))$')
-    plt.plot(rk_1, o_bound, 'k-', dashes=(3, 3), label=r'$o(r^{K-1})$')
-    plt.xlabel(r'$r^{K-1}$')
-    plt.ylabel(r'$\int_{I_K} \lvert \Phi^{-1}(u) - D(u)\rvert^p \dd{u}$')
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.legend(frameon=False, loc='upper left', borderaxespad=0, handletextpad=0.5)
-    plt.xlim(1e-6, 1e-1)
-    plt.ylim(1e-8, 1e-1)
-    if savefig:
-        plt.savefig('piecewise_linear_gaussian_approximation_error_singular_interval.pdf', format='pdf', bbox_inches='tight', transparent=True)
-        if not plot_from_json:
-            with open('piecewise_linear_gaussian_approximation_error_singular_interval.json', "w") as output_file:
-                output_file.write(json.dumps({k: [float(i) for i in v] for k, v in {'r^{K-1}': rk_1, 'integral': y_integral, 'O_bound': O_bound, 'o_bound': o_bound}.items()}, indent=4))
-
-
 def plot_piecewise_linear_gaussian_approximation_error(savefig=False, plot_from_json=True):
     if plot_from_json:
         with open('piecewise_linear_gaussian_approximation_error.json', "r") as input_file:
@@ -539,7 +483,6 @@ if __name__ == '__main__':
     plot_piecewise_constant_approximation(**plot_params)
     plot_piecewise_constant_error(**plot_params)
     plot_piecewise_linear_gaussian_approximation(**plot_params)
-    plot_piecewise_linear_gaussian_approximation_error_singular_interval(**plot_params)
     plot_piecewise_linear_gaussian_approximation_error(**plot_params)
     plot_variance_reduction_geometric_brownian_motion(**plot_params)
     plot_variance_reduction_cir_process(**plot_params)
