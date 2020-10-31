@@ -38,7 +38,7 @@ rc_fonts_extras = {
 #     "font.size": 9,
 #     'text.latex.preamble': [
 #         r"""
-#         \usepackage{amsmath,amssymb,bbm,bm,physics}
+#         \usepackage{amsmath,amssymb,bbm,bm,physics,fixcmex}
 #         """],
 #     "font.serif": "computer modern roman",
 # }
