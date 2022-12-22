@@ -9,9 +9,11 @@ Description:
 """
 
 import matplotlib as mpl
+figure_size = (2.8, 2)
 rc_fonts = {
     "font.family": "serif",
-    'figure.figsize': (2.8, 2),
+    "font.size": 9,
+    'figure.figsize': figure_size,
     'lines.linewidth': 0.5,
     'axes.linewidth': 0.5,
     'xtick.major.width': 0.5,
@@ -20,29 +22,32 @@ rc_fonts = {
     'ytick.minor.width': 0.3,
     'lines.markersize': 3,
     "text.usetex": True,
-    'text.latex.preview': True,
+    # 'text.latex.preview': True, # Not in newer python.
+}
+style = 'arxiv'
+style = 'acm'
+preamble = ''
 
-}
-# For ACM
-rc_fonts_extras = {
-    "font.size": 9,
-    'text.latex.preamble': [
-        r"""
-        \usepackage{amsmath,amssymb,bbm,bm,physics}
-        \usepackage{libertine}
-        \usepackage[libertine]{newtxmath}
-        """],
-}
-# # For arXiv
-# rc_fonts_extras = {
-#     "font.size": 9,
-#     'text.latex.preamble': [
-#         r"""
-#         \usepackage{amsmath,amssymb,bbm,bm,physics,fixcmex}
-#         """],
-#     "font.serif": "computer modern roman",
-# }
+
+style = 'arxiv'
+if style == 'arxiv':
+    rc_fonts_extras = {"font.serif": "computer modern roman"}
+    preamble = r'\usepackage{amsmath,amssymb,bbm,bm,physics,fixcmex}'
+elif style == 'acm':
+    preamble = r"""
+    \usepackage{amsmath,amssymb,bbm,bm,physics} 
+    \usepackage{libertine} 
+    \usepackage[libertine]{newtxmath}
+    """
+else:
+    raise NotImplementedError
+
+rc_fonts_extras = {}
+
+
 rc_fonts = {**rc_fonts, **rc_fonts_extras}
 mpl.rcParams.update(rc_fonts)
 import matplotlib.pylab as plt
+plt.rc('text.latex', preamble=preamble) # Multi-line preambles need to be set here and not in rc_fonts_extras annoyingly.
 plt.ion()
+
