@@ -3,7 +3,6 @@
 ## Author
 
 Oliver Sheridan-Methven, October 2020.  
-[oliver.sheridan-methven@maths.ox.ac.uk](mailto:oliver.sheridan-methven@maths.ox.ac.uk)  
 [oliver.sheridan-methven@hotmail.co.uk](mailto:oliver.sheridan-methven@hotmail.co.uk)  
 
 ## Description
