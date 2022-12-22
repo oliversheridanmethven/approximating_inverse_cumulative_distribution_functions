@@ -29,7 +29,7 @@ style = 'acm'
 preamble = ''
 
 
-style = 'arxiv'
+style = 'acm'
 if style == 'arxiv':
     rc_fonts_extras = {"font.serif": "computer modern roman"}
     preamble = r'\usepackage{amsmath,amssymb,bbm,bm,physics,fixcmex}'

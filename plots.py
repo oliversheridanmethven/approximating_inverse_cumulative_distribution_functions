@@ -765,7 +765,8 @@ def print_speed_up_and_efficiencies_gaussian():
 
 if __name__ == '__main__':
     plot_params = dict(savefig=True, plot_from_json=True)
-    plot_params = dict(savefig=False, plot_from_json=True)
+    # plot_params = dict(savefig=True, plot_from_json=False)
+    # plot_params = dict(savefig=False, plot_from_json=True)
     # plot_params = dict(savefig=False, plot_from_json=False)
     plot_piecewise_constant_approximation(**plot_params)
     plot_piecewise_constant_error(**plot_params)
