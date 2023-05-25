@@ -9,6 +9,7 @@ Description:
 """
 import plotting_configuration
 import matplotlib.pylab as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, InsetPosition, mark_inset
 import numpy as np
 import pandas as pd
 from scipy.stats import norm, ncx2
@@ -45,25 +46,55 @@ def plot_piecewise_constant_approximation(savefig=False, plot_from_json=True):
         with open('piecewise_constant_gaussian_approximation.json', "r") as input_file:
             results = json.load(input_file)
         u, exact, approximation = results['uniforms'], results['exact'], results['approximate']
+        N, w, x, y = results['samples'], results['samples_uniform'], results['samples_exact'], results['samples_approx']
     else:
         u = np.linspace(0, 1, 1000)[1:-1]
         norm_inv_approx = construct_piecewise_constant_approximation(norm.ppf, 8)
         exact = norm_inv(u)
         approximation = norm_inv_approx(u)
+        # For the QQ-plot
+        N = 1000
+        w = np.random.random(N)
+        x = norm_inv(w)
+        norm_inv_approx = construct_piecewise_constant_approximation(norm.ppf, 8)
+        y = norm_inv_approx(w)
+
     plt.clf()
-    plt.plot(u, exact, 'k--', label=r'$\Phi^{-1}(x)$')
-    plt.plot(u, approximation, 'k,', label=r'__nolegend__')
-    plt.plot([], [], 'k-', label=r'$Q(x)$')
-    plt.xlabel(r"$x$")
-    plt.xticks([0, 1])
-    plt.yticks([-3, 0, 3])
-    plt.ylim(-3, 3)
-    plt.legend(frameon=False)
+    ax1 = plt.gca()
+    ax1.plot(u, exact, 'k--', label=r'$\Phi^{-1}(x)$')
+    ax1.plot(u, approximation, 'k,', label=r'__nolegend__')
+    ax1.plot([], [], 'k-', label=r'$Q(x)$')
+    ax1.set_xlabel(r"$x$")
+    ax1.set_xticks([0, 1])
+    ax1.set_yticks([-3, 0, 3])
+    ax1.set_ylim(-3, 3)
+    ax1.legend(frameon=False)
+    # The qq-plot
+    qlim = 3
+    bbox = ax1.get_window_extent()
+    ratio = bbox.width / bbox.height
+    size=43
+    ax2 = inset_axes(ax1, width=str(size / ratio) + '%', height=str(size) + '%', loc="lower right", borderpad=0.5)
+    ax2.set_box_aspect(1)
+    ax2.cla()
+    ax2.plot(x, x, '--', color='grey')
+    ax2.plot(x, y, 'k.', ms=0.7)
+    ax2.set_xlim(-qlim, qlim)
+    ax2.set_ylim(-qlim, qlim)
+    ax2.set_xticks([])
+    ax2.set_yticks([-qlim, 0, qlim])
+
     if savefig:
         plt.savefig('piecewise_constant_gaussian_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
         if not plot_from_json:
             with open('piecewise_constant_gaussian_approximation.json', "w") as output_file:
-                output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
+                output_file.write(json.dumps({'uniforms': u.tolist(),
+                                              'exact': norm_inv(u).tolist(),
+                                              'approximate': norm_inv_approx(u).tolist(),
+                                              'samples': N,
+                                              'samples_uniform': w.tolist(),
+                                              'samples_exact': x.tolist(),
+                                              'samples_approx': y.tolist()}, indent=4))
 
 
 def plot_piecewise_constant_error(savefig=False, plot_from_json=True):
@@ -116,24 +147,53 @@ def plot_piecewise_linear_gaussian_approximation(savefig=False, plot_from_json=T
         with open('piecewise_linear_gaussian_approximation.json', "r") as input_file:
             results = json.load(input_file)
         u, exact, approximate = results['uniforms'], results['exact'], results['approximate']
+        N, w, x, y = results['samples'], results['samples_uniform'], results['samples_exact'], results['samples_approx']
     else:
         u = np.linspace(0, 1, 1000)[1:-1]
         norm_inv_approx = construct_symmetric_piecewise_polynomial_approximation(norm.ppf, n_intervals=5, polynomial_order=1)
         exact, approximate = norm_inv(u), norm_inv_approx(u)
+        # For the QQ-plot
+        N = 1000
+        w = np.random.random(N)
+        x = norm_inv(w)
+        y = norm_inv_approx(w)
+
     plt.clf()
-    plt.plot(u, exact, 'k--', label=r'$\Phi^{-1}(x)$')
-    plt.plot(u, approximate, 'k,', label=r'__nolegend__')
-    plt.plot([], [], 'k-', label=r'$D(x)$')
-    plt.xlabel(r"$x$")
-    plt.xticks([0, 1])
-    plt.yticks([-3, 0, 3])
-    plt.ylim(-3, 3)
-    plt.legend(frameon=False)
+    ax1 = plt.gca()
+    ax1.plot(u, exact, 'k--', label=r'$\Phi^{-1}(x)$')
+    ax1.plot(u, approximate, 'k,', label=r'__nolegend__')
+    ax1.plot([], [], 'k-', label=r'$D(x)$')
+    ax1.set_xlabel(r"$x$")
+    ax1.set_xticks([0, 1])
+    ax1.set_yticks([-3, 0, 3])
+    ax1.set_ylim(-3, 3)
+    ax1.legend(frameon=False)
+    # The qq-plot
+    qlim = 3
+    bbox = ax1.get_window_extent()
+    ratio = bbox.width / bbox.height
+    size=43
+    ax2 = inset_axes(ax1, width=str(size / ratio) + '%', height=str(size) + '%', loc="lower right", borderpad=0.5)
+    ax2.set_box_aspect(1)
+    ax2.cla()
+    ax2.plot(x, x, '--', color='grey')
+    ax2.plot(x, y, 'k.', ms=0.7)
+    ax2.set_xlim(-qlim, qlim)
+    ax2.set_ylim(-qlim, qlim)
+    ax2.set_xticks([])
+    ax2.set_yticks([-qlim, 0, qlim])
+
     if savefig:
         plt.savefig('piecewise_linear_gaussian_approximation.pdf', format='pdf', bbox_inches='tight', transparent=True)
         if not plot_from_json:
             with open('piecewise_linear_gaussian_approximation.json', "w") as output_file:
-                output_file.write(json.dumps({'uniforms': u.tolist(), 'exact': norm_inv(u).tolist(), 'approximate': norm_inv_approx(u).tolist()}, indent=4))
+                output_file.write(json.dumps({'uniforms': u.tolist(),
+                                              'exact': norm_inv(u).tolist(),
+                                              'approximate': norm_inv_approx(u).tolist(),
+                                              'samples': N,
+                                              'samples_uniform': w.tolist(),
+                                              'samples_exact': x.tolist(),
+                                              'samples_approx': y.tolist()}, indent=4))
 
 
 def plot_piecewise_linear_gaussian_approximation_error(savefig=False, plot_from_json=True):
@@ -741,8 +801,8 @@ def plot_non_central_chi_squared_polynomial_approximation(savefig=False, plot_fr
 
 
 def print_speed_up_and_efficiencies(variances_reductions, cost_reductions):
-    for V, c in zip(variances_reductions, cost_reductions):
-        c = 1.0 / c
+    for V, c0 in zip(variances_reductions, cost_reductions):
+        c = 1.0 / c0
         C = 1.0 + c
         e = (1.0 + np.sqrt(V * C / c)) ** 2
         s = c * e
@@ -777,3 +837,4 @@ if __name__ == '__main__':
     plot_variance_reduction_cir_process(**plot_params)
     plot_variance_reduction_cir_process_asian_option(**plot_params)
     plot_non_central_chi_squared_polynomial_approximation(**plot_params)
+    print_speed_up_and_efficiencies_gaussian()
